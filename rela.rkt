@@ -1,4 +1,5 @@
 #lang racket
+(current-namespace (make-base-namespace))
 
 (struct rl-table (name columns tuples))
 
@@ -60,14 +61,26 @@
             (rl-projection-intern (rl-table-tuples table) 
                                   (get-all-column-index (rl-table-columns table) column-names))))
 
-(define (rl-build-column-selector table column-name)
-  (let ([column-index (index-of (rl-table-columns table) column-name)])
+(define (rl-build-column-selector table-columns column-name)
+  (let ([column-index (index-of table-columns column-name)])
     (if (equal? column-index false)
       (error "column does not exist")
       (lambda (tuple) (list-ref tuple column-index)))))
 
-(define (compile-condition incomplete-condition)
-  )
+(struct rl-ref (name))
+
+(define (rl-compile-expr table-columns incomplete-expr)
+  (define (rl-compile-item item tuple)
+    (cond [(rl-ref? item)
+            (let ([column-name (rl-ref-name item)])
+              (list (rl-build-column-selector table-columns column-name) 
+                    (list (lambda () tuple))))]
+          [(list? item) (rl-compile-list item tuple)]
+          [else item]))
+  (define (rl-compile-list the-list tuple)
+    (map (lambda (item) (rl-compile-item item tuple)) the-list))
+  (lambda (tuple) (eval (map (lambda (item) (rl-compile-item item tuple))
+                        incomplete-expr))))
 
 (define (display-table table)
   (define (display-tuples tuples)
@@ -93,6 +106,18 @@
             (list (list 1 2 3)
                   (list 4 5 6)
                   (list 2 3 6))))
+
+(define (and-proc x y) (and x y))
+
+(define compiled-expr 
+  (rl-compile-expr (rl-table-columns test-table)
+                   (list and-proc (list > (rl-ref "a") 1)
+                                  (list < (rl-ref "b") 4))))
+
+(display (compiled-expr (list 2 3 4))) ; #t
+(display "\n")
+(display (compiled-expr (list 4 5 6))) ; #f
+(display "\n")
 
 (define test-table-2
   (rl-table "test-table2"
