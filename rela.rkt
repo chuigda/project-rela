@@ -5,57 +5,33 @@
 
 (define (rl-cartesian-product table1 table2)
   (define (rl-cartesian-product-one tuple table)
-    (if (null? table) 
-        null
-        (cons (append tuple (car table))
-              (rl-cartesian-product-one tuple (cdr table)))))
+    (map (lambda (tuple1) (append tuple tuple1)) table))
   (define (rl-cartesian-product-intern table1-tuples table2-tuples)
-    (if (null? table1-tuples)
-        null
-        (append (rl-cartesian-product-one (car table1-tuples) table2-tuples)
-                (rl-cartesian-product-intern (cdr table1-tuples) table2-tuples))))
+    (foldl (lambda (x0 x) (append x0 x))
+           (list)
+           (map (lambda (tuple1) (rl-cartesian-product-one tuple1 table2-tuples)) table1-tuples)))
   (rl-table (string-append "<" (rl-table-name table1) " * " (rl-table-name table2) ">" )
             (append (rl-table-columns table1) (rl-table-columns table2))
             (rl-cartesian-product-intern (rl-table-tuples table1)
                                          (rl-table-tuples table2))))
 
 (define (rl-select-base table pred select-name)
-  (define (rl-select-intern tuples)
-    (if (null? tuples)
-        null
-        (let ([this-tuple (car tuples)]
-              [rest-tuples (cdr tuples)])
-          (if (pred this-tuple)
-              (append (list this-tuple)
-                      (rl-select-intern rest-tuples))
-              (rl-select-intern rest-tuples)))))
+  (define (rl-select-intern tuples) (filter pred tuples))
   (rl-table (string-append "SIGMA(" select-name "; " (rl-table-name table) ")")
             (rl-table-columns table)
             (rl-select-intern (rl-table-tuples table))))
 
 (define (rl-projection table column-names projection-name)
   (define (get-all-column-index table-columns column-names)
-    (if (null? column-names)
-        null
-        (let ([this-column-name (car column-names)]
-              [rest-column-names (cdr column-names)])
-          (let ([column-index (index-of table-columns this-column-name)])
-            (if (equal? column-index false)
-                (error "column does not exist")
-                (append (list column-index) 
-                              (get-all-column-index table-columns rest-column-names)))))))
+    (map (lambda (column-name)
+      (let ([column-index (index-of table-columns column-name)])
+        (if (equal? column-index false) (error "column does not exist")
+                                        column-index)))
+      column-names))
   (define (projection-one-tuple tuple column-indexes)
-    (if (null? column-indexes)
-        null
-        (let ([this-column-index (car column-indexes)]
-              [rest-column-indexes (cdr column-indexes)])
-          (append (list (list-ref tuple this-column-index))
-                  (projection-one-tuple tuple rest-column-indexes)))))
+    (map (lambda (column-index) (list-ref tuple column-index)) column-indexes))
   (define (rl-projection-intern tuples column-indexes)
-    (if (null? tuples)
-        null
-        (append (list (projection-one-tuple (car tuples) column-indexes))
-                (rl-projection-intern (cdr tuples) column-indexes))))
+    (map (lambda (tuple) (projection-one-tuple tuple column-indexes)) tuples))
   (rl-table (string-append "PI(" projection-name "; " (rl-table-name table) ")")
             column-names
             (rl-projection-intern (rl-table-tuples table) 
@@ -108,6 +84,8 @@
                   (list 2 3 6))))
 
 (define (and-proc x y) (and x y))
+
+(define (or-proc x y) (or x y))
 
 (define compiled-expr 
   (rl-compile-expr (rl-table-columns test-table)
