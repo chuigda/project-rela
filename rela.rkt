@@ -1,4 +1,12 @@
 #lang racket
+
+(require racket/format)
+
+(define (map-recur proc x)
+  (define (map-one item)
+    (if (list? item) (map map-one item) (proc item)))
+  (map map-one x))
+
 (current-namespace (make-base-namespace))
 
 (struct rl-table (name columns tuples))
@@ -62,15 +70,21 @@
   (define (display-tuples tuples)
       (if (null? (cdr tuples))
           (begin
-            (display "")
+            (display " ")
             (display (car tuples)))
           (begin
-            (display (car tuples))
-            (display "\n ")
+            (display " ")
+            (displayln (car tuples))
             (display-tuples (cdr tuples)))))
-  (begin (display (rl-table-name table)) (display "\n")
-         (display " ") (display (rl-table-columns table)) (display "\n")
-         (display " ") (display-tuples (rl-table-tuples table))))
+  (begin (displayln (rl-table-name table))
+         (display " ") (displayln (rl-table-columns table))
+         (display-tuples (rl-table-tuples table))))
+
+(define (raw-expr->string raw-expr)
+  (define (rl-ref-replace raw-expr)
+    (map-recur (lambda (x) (if (rl-ref? x) (rl-ref-name x) x))
+               raw-expr))
+  (string-replace (~a (rl-ref-replace raw-expr)) "procedure:" ""))
 
 ; select columns from tables where conditions
 (define (rl-select columns tables conditions)
@@ -78,16 +92,21 @@
 
 (define test-table 
   (rl-table "test-table" 
-            (list "a" "b" "c") 
-            (list (list 1 2 3)
-                  (list 4 5 6)
-                  (list 2 3 6))))
+            '("a" "b" "c") 
+            '((1 2 3)
+              (4 5 6)
+              (2 3 6))))
 
 (define (and-proc x y) (and x y))
 
 (define (or-proc x y) (or x y))
 
-(define compiled-expr 
+(define raw-expr (list and-proc (list > (rl-ref "a") 1)
+                                (list < (rl-ref "b") 4)))
+(display (raw-expr->string raw-expr))
+(display "\n")
+
+(define compiled-expr
   (rl-compile-expr (rl-table-columns test-table)
                    (list and-proc (list > (rl-ref "a") 1)
                                   (list < (rl-ref "b") 4))))
@@ -99,10 +118,10 @@
 
 (define test-table-2
   (rl-table "test-table2"
-            (list "a1" "d" "e" )
-            (list (list 1 "PaddY" "AK-47")
-                  (list 2 "Winter" "SG-553")
-                  (list 4 "Auxilior" "XM1014"))))
+            '("a1" "d" "e" )
+            '((1 "PaddY" "AK-47")
+              (2 "Winter" "SG-553")
+              (4 "Auxilior" "XM1014"))))
 
 (define ttable-p (rl-projection test-table '("c" "b") "c, b"))
 
