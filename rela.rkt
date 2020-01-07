@@ -32,10 +32,10 @@
 (define (rl-projection table column-names projection-name)
   (define (get-all-column-index table-columns column-names)
     (map (lambda (column-name)
-      (let ([column-index (index-of table-columns column-name)])
-        (if (equal? column-index false) (error "column does not exist")
-                                        column-index)))
-      column-names))
+           (let ([column-index (index-of table-columns column-name)])
+             (if (equal? column-index false) (error (string-append "column " column-name " does not exist"))
+                 column-index)))
+         column-names))
   (define (projection-one-tuple tuple column-indexes)
     (map (lambda (column-index) (list-ref tuple column-index)) column-indexes))
   (define (rl-projection-intern tuples column-indexes)
@@ -48,34 +48,34 @@
 (define (rl-build-column-selector table-columns column-name)
   (let ([column-index (index-of table-columns column-name)])
     (if (equal? column-index false)
-      (error "column does not exist")
-      (lambda (tuple) (list-ref tuple column-index)))))
+        (error "column does not exist")
+        (lambda (tuple) (list-ref tuple column-index)))))
 
 (struct rl-ref (name))
 
 (define (rl-compile-expr table-columns incomplete-expr)
   (define (rl-compile-item item tuple)
     (cond [(rl-ref? item)
-            (let ([column-name (rl-ref-name item)])
-              (list (rl-build-column-selector table-columns column-name) 
-                    (list (lambda () tuple))))]
+           (let ([column-name (rl-ref-name item)])
+             (list (rl-build-column-selector table-columns column-name) 
+                   (list (lambda () tuple))))]
           [(list? item) (rl-compile-list item tuple)]
           [else item]))
   (define (rl-compile-list the-list tuple)
     (map (lambda (item) (rl-compile-item item tuple)) the-list))
   (lambda (tuple) (eval (map (lambda (item) (rl-compile-item item tuple))
-                        incomplete-expr))))
+                             incomplete-expr))))
 
 (define (display-table table)
   (define (display-tuples tuples)
-      (if (null? (cdr tuples))
-          (begin
-            (display " ")
-            (display (car tuples)))
-          (begin
-            (display " ")
-            (displayln (car tuples))
-            (display-tuples (cdr tuples)))))
+    (if (null? (cdr tuples))
+        (begin
+          (display " ")
+          (display (car tuples)))
+        (begin
+          (display " ")
+          (displayln (car tuples))
+          (display-tuples (cdr tuples)))))
   (begin (displayln (rl-table-name table))
          (display " ") (displayln (rl-table-columns table))
          (display-tuples (rl-table-tuples table))))
@@ -86,67 +86,77 @@
                raw-expr))
   (string-replace (~a (rl-ref-replace raw-expr)) "procedure:" ""))
 
-; select columns from tables where conditions
-(define (rl-select columns tables conditions)
-  (error "unimplemented"))
-
-(define test-table 
-  (rl-table "test-table" 
-            '("a" "b" "c") 
-            '((1 2 3)
-              (4 5 6)
-              (2 3 6))))
-
 (define (and-proc x y) (and x y))
 
 (define (or-proc x y) (or x y))
 
-(define raw-expr (list and-proc (list > (rl-ref "a") 1)
-                                (list < (rl-ref "b") 4)))
-(display (raw-expr->string raw-expr))
-(display "\n")
+(define (rl-select columns tables conditions)
+  (define (cartesian-all-tables tables)
+    (foldl (lambda (t0 t1) (rl-cartesian-product t0 t1))
+           (car tables)
+           (cdr tables)))
+  (define (rl-select-cascade raw-conditions compiled-conditions table)
+    (if (null? raw-conditions)
+        table
+        (rl-select-cascade (cdr raw-conditions)
+                           (cdr compiled-conditions)
+                           (rl-select-base table
+                                           (car compiled-conditions)
+                                           (raw-expr->string (car raw-conditions))))))
+  (let ([all-cprod-table (cartesian-all-tables tables)])
+    (let ([compiled-conditions (map (lambda (raw-expression) (rl-compile-expr (rl-table-columns all-cprod-table)
+                                                                              raw-expression))
+                                    conditions)])
+      (rl-projection (rl-select-cascade conditions compiled-conditions all-cprod-table) columns (~a columns)))))
 
-(define compiled-expr
-  (rl-compile-expr (rl-table-columns test-table)
-                   (list and-proc (list > (rl-ref "a") 1)
-                                  (list < (rl-ref "b") 4))))
+(define players-table
+  (rl-table "players-table"
+            '("pno" "pname" "pteam")
+            '((1 "QDU.Sumoon" "Qingdao University")
+              (2 "BUG.Chu1gda" "BUGaming")
+              (3 "ICE.1000" "Internal Compiler Error")
+              (4 "CHUK-SZ.ZYF" "CHinese University of HongKong (Shenzhen)"))))
 
-(display (compiled-expr (list 2 3 4))) ; #t
-(display "\n")
-(display (compiled-expr (list 4 5 6))) ; #f
-(display "\n")
+(define tools-table
+  (rl-table "tools-table"
+            '("tno" "tname" "tvendor")
+            '((1 "Dev-CPP" "ACM-ICPC")
+              (2 "Intellij-IDEA" "Jetbrains")
+              (3 "QtCreator" "Digia")
+              (4 "CLion" "Jetbrains"))))
 
-(define test-table-2
-  (rl-table "test-table2"
-            '("a1" "d" "e" )
-            '((1 "PaddY" "AK-47")
-              (2 "Winter" "SG-553")
-              (4 "Auxilior" "XM1014"))))
+(define players-tools-table
+  (rl-table "players-tools-table"
+            '("pno1" "tno1")
+            '((1 1)
+              (2 3)
+              (3 2)
+              (4 4))))
 
-(define ttable-p (rl-projection test-table '("c" "b") "c, b"))
+; select pname, tname from playes-table, tools-table, players-tools-table where pno = pno1 and tno = tno1
+(define s1 (rl-select '("pname" "tname")
+                      (list players-table tools-table players-tools-table)
+                      (list (list = (rl-ref "pno") (rl-ref "pno1"))
+                            (list = (rl-ref "tno") (rl-ref "tno1")))))
 
-(define ttable-s (rl-select-base test-table 
-                                 (lambda (tuple) (= (list-ref tuple 2) 6))
-                                 "c = 6"))
+; select tname, tvendor from tools-table where tvendor = "Jetbrains"
+(define s2 (rl-select '("tname" "tvendor")
+                      (list tools-table)
+                      (list (list string=? (rl-ref "tvendor") "Jetbrains"))))
 
-(define cprod (rl-cartesian-product test-table test-table-2))
+; select pname from players-table, tools-table, players-tools-table where pno = pno1 and tno = tno1 and tvendor = "Jetbrains"
+(define s3 (rl-select '("pname")
+                      (list players-table tools-table players-tools-table)
+                      (list (list = (rl-ref "pno") (rl-ref "pno1"))
+                            (list = (rl-ref "tno") (rl-ref "tno1"))
+                            (list string=? (rl-ref "tvendor") "Jetbrains"))))
 
-(define cprod-selected (rl-projection (rl-select-base cprod 
-                                                      (lambda (tuple) (= (list-ref tuple 0)
-                                                                         (list-ref tuple 3)))
-                                                      "a = a1")
-                                      '("a" "b" "c" "d" "e")
-                                      "a, b, c, d, e"))
+(display-table s1)
 
-(display-table test-table)
-(display "\n")
-(display-table test-table-2)
-(display "\n")
-(display-table ttable-p)
-(display "\n")
-(display-table ttable-s)
-(display "\n")
-(display-table cprod)
-(display "\n")
-(display-table cprod-selected)
-(display "\n")
+(displayln " ")
+
+(display-table s2)
+
+(displayln " ")
+
+(display-table s3)
