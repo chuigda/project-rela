@@ -33,7 +33,8 @@
   (define (get-all-column-index table-columns column-names)
     (map (lambda (column-name)
            (let ([column-index (index-of table-columns column-name)])
-             (if (equal? column-index false) (error (string-append "column " column-name " does not exist"))
+             (if (equal? column-index false) 
+                 (error (string-append "column " column-name " does not exist"))
                  column-index)))
          column-names))
   (define (projection-one-tuple tuple column-indexes)
@@ -104,10 +105,13 @@
                                            (car compiled-conditions)
                                            (raw-expr->string (car raw-conditions))))))
   (let ([all-cprod-table (cartesian-all-tables tables)])
-    (let ([compiled-conditions (map (lambda (raw-expression) (rl-compile-expr (rl-table-columns all-cprod-table)
-                                                                              raw-expression))
+    (let ([compiled-conditions (map (lambda (raw-expression) 
+                                            (rl-compile-expr (rl-table-columns all-cprod-table)
+                                                                               raw-expression))
                                     conditions)])
-      (rl-projection (rl-select-cascade conditions compiled-conditions all-cprod-table) columns (~a columns)))))
+      (rl-projection (rl-select-cascade conditions compiled-conditions all-cprod-table) 
+                     columns 
+                     (~a columns)))))
 
 (define players-table
   (rl-table "players-table"
@@ -133,18 +137,27 @@
               (3 2)
               (4 4))))
 
-; select pname, tname from playes-table, tools-table, players-tools-table where pno = pno1 and tno = tno1
+; select pname, tname 
+;   from playes-table, tools-table, players-tools-table
+;   where pno = pno1 
+;     and tno = tno1
 (define s1 (rl-select '("pname" "tname")
                       (list players-table tools-table players-tools-table)
                       (list (list = (rl-ref "pno") (rl-ref "pno1"))
                             (list = (rl-ref "tno") (rl-ref "tno1")))))
 
-; select tname, tvendor from tools-table where tvendor = "Jetbrains"
+; select tname, tvendor
+;   from tools-table
+;   where tvendor = "Jetbrains"
 (define s2 (rl-select '("tname" "tvendor")
                       (list tools-table)
                       (list (list string=? (rl-ref "tvendor") "Jetbrains"))))
 
-; select pname from players-table, tools-table, players-tools-table where pno = pno1 and tno = tno1 and tvendor = "Jetbrains"
+; select pname
+; from players-table, tools-table, players-tools-table
+; where pno = pno1 
+;   and tno = tno1
+;   and tvendor = "Jetbrains"
 (define s3 (rl-select '("pname")
                       (list players-table tools-table players-tools-table)
                       (list (list = (rl-ref "pno") (rl-ref "pno1"))
