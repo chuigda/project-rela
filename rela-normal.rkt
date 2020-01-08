@@ -64,7 +64,7 @@
         [base2-test (rl-iter-test base2)])
     (define (rl-cproduct-iter-get cproduct-iter) (error "unimplemented"))
     (define (rl-cproduct-iter-next cproduct-iter) (error "unimplemented"))
-    (define (rl-cproduct-iter-at-end? select-iter) (error "unimplemented"))
+    (define (rl-cproduct-iter-at-end? cproduct-iter) (error "unimplemented"))
     (rl-iter (rl-cproduct-iter base1 base2)
              rl-cproduct-iter-get
              rl-cproduct-iter-next
