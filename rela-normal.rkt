@@ -13,13 +13,17 @@
 
 (struct rl-select-iter (base condition cur-tuples))
 
+(struct rl-equiv-join-iter (iter1 table2 attr1 attr2))
+
 (struct rl-cproduct-iter (base1 base2 base1-tuples base2-tuples))
 
 (struct rl-pi-iter (base column-selectors cur-tuples))
 
+(struct rl-iter (repr get next test))
+
 (struct rl-phantom-tuple ())
 
-(define (rl-build-iter table)
+(define (rl-build-basic-iter table)
   (rl-basic-iter table (rl-phantom-tuple)))
 
 (define (rl-basic-iter-get basic-iter)
