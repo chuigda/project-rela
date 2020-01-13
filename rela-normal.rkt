@@ -11,6 +11,20 @@
 ; basic table
 (struct rl-table (name columns tuples))
 
+(define (display-table table)
+  (define (display-tuples tuples)
+    (if (null? (cdr tuples))
+        (begin
+          (display " ")
+          (display (car tuples)))
+        (begin
+          (display " ")
+          (displayln (car tuples))
+          (display-tuples (cdr tuples)))))
+  (begin (displayln (rl-table-name table))
+         (display " ") (displayln (rl-table-columns table))
+         (display-tuples (rl-table-tuples table))))
+
 ; interface of dynamic method dispatch
 (struct rl-iter-procs (get next test rewind name columns))
 
@@ -162,6 +176,26 @@
                                       rl-projection-iter-columns))))
 
 (struct rl-select-iter (base))
+
+(define (rl-build-select-iter base raw-condition)
+  (define (raw-expr->string raw-expr)
+    (define (rl-ref-replace raw-expr)
+      (map-recur (lambda (x) (if (rl-ref? x) (rl-ref-name x) x))
+                 raw-expr))
+    (string-replace (~a (rl-ref-replace raw-expr)) "procedure:" ""))
+  (define (rl-compile-expr table-columns incomplete-expr)
+    (define (rl-compile-item item tuple)
+      (cond [(rl-ref? item)
+             (let ([column-name (rl-ref-name item)])
+               (list (rl-build-column-selector table-columns column-name) 
+                     (list (lambda () tuple))))]
+            [(list? item) (rl-compile-list item tuple)]
+            [else item]))
+    (define (rl-compile-list the-list tuple)
+      (map (lambda (item) (rl-compile-item item tuple)) the-list))
+    (lambda (tuple) (eval (map (lambda (item) (rl-compile-item item tuple))
+                               incomplete-expr))))
+  (error "unimplemented"))
 
 (struct rl-indexed-select-iter (base))
 
