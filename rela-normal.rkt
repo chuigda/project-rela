@@ -31,7 +31,7 @@
 (define (rl-iter-test iter)
   (let ([repr (rl-iter-repr iter)]
         [test-proc (rl-iter-procs-test (rl-iter-procset iter))])
-    (test-proc rer)))
+    (test-proc repr)))
 
 (define (rl-iter-rewind iter)
   (let* ([repr (rl-iter-repr iter)]
@@ -99,8 +99,8 @@
                                                      (rl-iter-next (rl-iter-rewind base2)))]
             [else (rl-cartesian-iter base1 (rl-iter-next base2))])))
   (define (rl-cartesian-iter-test cartesian-iter)
-    (let ([base1 (rl-cartesian-iter-base1 cartesian-iter)]
-      (rl-iter-test base1))))
+    (let ([base1 (rl-cartesian-iter-base1 cartesian-iter)])
+      (rl-iter-test base1)))
   (define (rl-cartesian-iter-rewind cartesian-iter)
     (let ([base1 (rl-cartesian-iter-base1 cartesian-iter)]
           [base2 (rl-cartesian-iter-base2 cartesian-iter)])
@@ -108,8 +108,8 @@
                          (rl-iter-rewind base2))))
   (define (rl-cartesian-iter-name cartesian-iter)
     (let ([base1 (rl-cartesian-iter-base1 cartesian-iter)]
-          [base2 (rl-cartesian-iter-base2 cartesian-iter)]
-      (string-append "<" (rl-iter-name base1) " * " (rl-iter-name base2) ">"))))
+          [base2 (rl-cartesian-iter-base2 cartesian-iter)])
+      (string-append "<" (rl-iter-name base1) " * " (rl-iter-name base2) ">")))
   (define (rl-cartesian-iter-columns cartesian-iter)
     (let ([base1 (rl-cartesian-iter-base1 cartesian-iter)]
           [base2 (rl-cartesian-iter-base2 cartesian-iter)])
@@ -120,9 +120,46 @@
                                     rl-cartesian-iter-test
                                     rl-cartesian-iter-rewind
                                     rl-cartesian-iter-name
-                                    rl-cartesian-iter-columns))
+                                    rl-cartesian-iter-columns)))
 
-(struct rl-pi-iter (base))
+(struct rl-projection-iter (base))
+
+(define (rl-build-projection-iter base column-names)
+  (define (rl-build-all-column-selectors table-columns column-names)
+    (define (rl-build-column-selector table-columns column-name)
+      (let ([column-index (index-of table-columns column-name)])
+        (if (equal? column-index false)
+            (error "column does not exist")
+            (lambda (tuple) (list-ref tuple column-index)))))
+    (map (lambda (column-name) (rl-build-column-selector table-columns column-name)) 
+         column-names))
+  (let* ([base-columns (rl-iter-columns base)]
+         [all-column-selectors (rl-build-all-column-selectors base-columns column-names)])
+    (define (rl-projection-iter-get projection-iter)
+      (let ([cur-tuple (rl-iter-get projection-iter)])
+               (map (lambda (f) (f cur-tuple))
+                    all-column-selectors)))
+    (define (rl-projection-iter-next projection-iter)
+      (let ([base (rl-projection-iter-base projection-iter)])
+        (rl-projection-iter (rl-iter-next base))))
+    (define (rl-projection-iter-test projection-iter)
+      (let ([base (rl-projection-iter-base projection-iter)])
+        (rl-iter-test base)))
+    (define (rl-projection-iter-rewind projection-iter)
+      (let ([base (rl-projection-iter-base projection-iter)])
+        (rl-projection-iter (rl-iter-rewind base))))
+    (define (rl-projection-iter-name projection-iter)
+      (let ([base (rl-projection-iter-base projection-iter)])
+        (string-append "PI(" rl-projection-iter-name "; " (~a) ")")))
+    (define (rl-projection-iter-columns projection-iter)
+      column-names)
+    (rl-iter #|repr|#  (rl-projection-iter base)
+             #|procs|# (rl-iter-procs rl-projection-iter-get
+                                      rl-projection-iter-next
+                                      rl-projection-iter-test
+                                      rl-projection-iter-rewind
+                                      rl-projection-iter-name
+                                      rl-projection-iter-columns))))
 
 (struct rl-select-iter (base))
 
