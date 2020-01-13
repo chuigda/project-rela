@@ -164,7 +164,7 @@
         (rl-projection-iter (rl-iter-rewind base))))
     (define (rl-projection-iter-name projection-iter)
       (let ([base (rl-projection-iter-base projection-iter)])
-        (string-append "PI(" rl-projection-iter-name "; " (~a) ")")))
+        (string-append "PI<" rl-projection-iter-name "; " (~a) ">")))
     (define (rl-projection-iter-columns projection-iter)
       column-names)
     (rl-iter #|repr|#  (rl-projection-iter base)
@@ -195,7 +195,19 @@
       (map (lambda (item) (rl-compile-item item tuple)) the-list))
     (lambda (tuple) (eval (map (lambda (item) (rl-compile-item item tuple))
                                incomplete-expr))))
-  (error "unimplemented"))
+  (let ([compiled-condition (rl-compile-expr (rl-iter-columns base) raw-condition)])
+    (define (rl-select-iter-get select-iter)
+      (let ([base (rl-select-iter-base select-iter)])
+        (rl-iter-get base)))
+    (define (rl-select-iter-next select-iter)
+      (define (rl-select-iter-next-intern base) 
+        (cond [(rl-iter-test base) (rl-select-iter base)]
+              [(compiled-condition (rl-iter-get base)) (rl-select-iter base)]
+              [else (rl-select-iter-next-intern (rl-iter-next base))]))
+      (rl-select-iter (rl-select-iter-next-intern (rl-select-iter-base select-iter))))
+    (define (rl-select-iter-test select-iter)
+      (rl-iter-test (rl-select-iter-base select-iter)))
+    (error "unimplemented")))
 
 (struct rl-indexed-select-iter (base))
 
