@@ -172,7 +172,7 @@
   (let* ([base-columns (rl-iter-columns base)]
          [all-column-selectors (rl-build-all-column-selectors base-columns column-names)])
     (define (rl-projection-iter-get projection-iter)
-      (let ([cur-tuple (rl-iter-get projection-iter)])
+      (let ([cur-tuple (rl-iter-get (rl-projection-iter-base projection-iter))])
         (map (lambda (f) (f cur-tuple))
              all-column-selectors)))
     (define (rl-projection-iter-next projection-iter)
@@ -186,7 +186,11 @@
         (rl-projection-iter (rl-iter-rewind base))))
     (define (rl-projection-iter-name projection-iter)
       (let ([base (rl-projection-iter-base projection-iter)])
-        (string-append "PI<" rl-projection-iter-name "; " (~a) ">")))
+        (string-append "PI<" 
+                       (rl-iter-name base)
+                       "; "
+                       (~a (rl-projection-iter-columns projection-iter)) 
+                       ">")))
     (define (rl-projection-iter-columns projection-iter)
       column-names)
     (rl-iter #|repr|#  (rl-projection-iter base)
@@ -252,7 +256,7 @@
   (displayln (~a (rl-iter-columns iter)))
   (define (rl-iter-traverse-int iter)
     (if (rl-iter-test iter)
-        (displayln "-----")
+        (displayln "")
         (begin (writeln (rl-iter-get iter))
                (rl-iter-traverse-int (rl-iter-next iter)))))
   (rl-iter-traverse-int (rl-iter-next iter)))
@@ -299,8 +303,17 @@
                                                     tools-table-iter) 
                            players-tools-table-iter))
 
+(define selected-iter1
+  (rl-build-select-iter three-cartesian-iter (list = (rl-ref "tno") (rl-ref "tno1"))))
+
+(define selected-iter2
+  (rl-build-select-iter selected-iter1 (list = (rl-ref "pno") (rl-ref "pno1"))))
+
+(define final-projection-iter
+  (rl-build-projection-iter selected-iter2 (list "pno" "pname" "pteam" "tname" "tvendor")))
+
 (rl-iter-traverse players-table-iter)
 
 (rl-iter-traverse jetbrains-tools-table-iter)
 
-(rl-iter-traverse three-cartesian-iter)
+(rl-iter-traverse final-projection-iter)
