@@ -312,8 +312,13 @@
 (define final-projection-iter
   (rl-build-projection-iter selected-iter2 (list "pno" "pname" "pteam" "tname" "tvendor")))
 
+(define final-selected-iter
+  (rl-build-select-iter final-projection-iter (list equal? (rl-ref "tvendor") "Jetbrains")))
+
 (rl-iter-traverse players-table-iter)
 
 (rl-iter-traverse jetbrains-tools-table-iter)
 
 (rl-iter-traverse final-projection-iter)
+
+(rl-iter-traverse final-selected-iter)
