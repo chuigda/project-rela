@@ -1,6 +1,10 @@
-#lang racket
+#lang debug racket
 
 (require racket/format)
+(require racket/trace)
+
+; sometimes useful for debugging
+(define (id x) x)
 
 ; making eval work
 (current-namespace (make-base-namespace))
