@@ -2,6 +2,9 @@
 
 (require racket/format)
 
+; making eval work
+(current-namespace (make-base-namespace))
+
 ; we need this for tree structure traversing
 (define (map-recur proc x)
   (define (map-one item)
@@ -10,6 +13,9 @@
 
 ; basic table
 (struct rl-table (name columns tuples))
+
+; for building name references in raw expressions
+(struct rl-ref (name))
 
 (define (display-table table)
   (define (display-tuples tuples)
@@ -77,9 +83,9 @@
   (define (rl-basic-iter-next basic-iter)
     (let ([table (rl-basic-iter-table basic-iter)]
           [cur-tuples (rl-basic-iter-cur-tuples basic-iter)])
-      (if (null? cur-tuples)
-          (error "iterator already at end")
-          (rl-basic-iter table (cdr cur-tuples)))))
+      (cond [(null? cur-tuples) (error "iterator already at end")]
+            [(rl-phantom-tuple? cur-tuples) (rl-basic-iter table (rl-table-tuples table))]
+            [(rl-basic-iter table (cdr cur-tuples))])))
   (define (rl-basic-iter-test basic-iter)
     (let ([cur-tuples (rl-basic-iter-cur-tuples basic-iter)])
       (null? cur-tuples)))
@@ -104,12 +110,14 @@
 
 (define (rl-build-cartesian-iter base1 base2)
   (define (rl-cartesian-iter-get cartesian-iter)
-    (append (rl-iter-get base1) (rl-iter-get base2)))
+  (let ([base1 (rl-cartesian-iter-base1 cartesian-iter)]
+        [base2 (rl-cartesian-iter-base2 cartesian-iter)])
+    (append (rl-iter-get base1) (rl-iter-get base2))))
   (define (rl-cartesian-iter-next cartesian-iter)
     (let ([base1 (rl-cartesian-iter-base1 cartesian-iter)]
           [base2 (rl-cartesian-iter-base2 cartesian-iter)])
       (cond [(rl-iter-test base1) (error "iterator at end")]
-            [(rl-iter-test base2) (rl-cartesian-iter (rl-iter-next base1) 
+            [(rl-iter-test base2) (rl-cartesian-iter (rl-iter-next base1)
                                                      (rl-iter-next (rl-iter-rewind base2)))]
             [else (rl-cartesian-iter base1 (rl-iter-next base2))])))
   (define (rl-cartesian-iter-test cartesian-iter)
@@ -127,8 +135,8 @@
   (define (rl-cartesian-iter-columns cartesian-iter)
     (let ([base1 (rl-cartesian-iter-base1 cartesian-iter)]
           [base2 (rl-cartesian-iter-base2 cartesian-iter)])
-      (append (rl-cartesian-iter-columns base1) (rl-cartesian-iter-columns base2))))
-  (rl-iter #|repr|#  (rl-cartesian-iter base1 (rl-iter-next base2))
+      (append (rl-iter-columns base1) (rl-iter-columns base2))))
+  (rl-iter #|repr|#  (rl-cartesian-iter (rl-iter-next base1) base2)
            #|procs|# (rl-iter-procs rl-cartesian-iter-get
                                     rl-cartesian-iter-next
                                     rl-cartesian-iter-test
@@ -138,13 +146,14 @@
 
 (struct rl-projection-iter (base))
 
+(define (rl-build-column-selector table-columns column-name)
+  (let ([column-index (index-of table-columns column-name)])
+    (if (equal? column-index false)
+        (error "column does not exist")
+        (lambda (tuple) (list-ref tuple column-index)))))
+
 (define (rl-build-projection-iter base column-names)
   (define (rl-build-all-column-selectors table-columns column-names)
-    (define (rl-build-column-selector table-columns column-name)
-      (let ([column-index (index-of table-columns column-name)])
-        (if (equal? column-index false)
-            (error "column does not exist")
-            (lambda (tuple) (list-ref tuple column-index)))))
     (map (lambda (column-name) (rl-build-column-selector table-columns column-name)) 
          column-names))
   (let* ([base-columns (rl-iter-columns base)]
@@ -200,15 +209,85 @@
       (let ([base (rl-select-iter-base select-iter)])
         (rl-iter-get base)))
     (define (rl-select-iter-next select-iter)
-      (define (rl-select-iter-next-intern base) 
-        (cond [(rl-iter-test base) (rl-select-iter base)]
-              [(compiled-condition (rl-iter-get base)) (rl-select-iter base)]
+      (define (rl-select-iter-next-intern base)
+        (cond [(rl-iter-test base) base]
+              [(compiled-condition (rl-iter-get base)) base]
               [else (rl-select-iter-next-intern (rl-iter-next base))]))
-      (rl-select-iter (rl-select-iter-next-intern (rl-select-iter-base select-iter))))
+      (rl-select-iter (rl-select-iter-next-intern (rl-iter-next (rl-select-iter-base select-iter)))))
     (define (rl-select-iter-test select-iter)
       (rl-iter-test (rl-select-iter-base select-iter)))
-    (error "unimplemented")))
+    (define (rl-select-iter-rewind select-iter)
+      (rl-select-iter (rl-iter-rewind (rl-select-iter-base select-iter))))
+    (define (rl-select-iter-name select-iter)
+      (string-append "SIGMA<"
+                     (rl-iter-name (rl-select-iter-base select-iter))
+                     ";"
+                     (~a (raw-expr->string raw-condition))
+                     ">"))
+    (define (rl-select-iter-columns select-iter)
+      (rl-iter-columns (rl-select-iter-base select-iter)))
+    (rl-iter #|repr|#  (rl-select-iter base)
+             #|procs|# (rl-iter-procs rl-select-iter-get
+                                      rl-select-iter-next
+                                      rl-select-iter-test
+                                      rl-select-iter-rewind
+                                      rl-select-iter-name
+                                      rl-select-iter-columns))))
+
+(define (rl-iter-traverse iter)
+  (displayln (rl-iter-name iter))
+  (displayln (~a (rl-iter-columns iter)))
+  (define (rl-iter-traverse-int iter)
+    (if (rl-iter-test iter)
+        (displayln "-----")
+        (begin (writeln (rl-iter-get iter))
+               (rl-iter-traverse-int (rl-iter-next iter)))))
+  (rl-iter-traverse-int (rl-iter-next iter)))
 
 (struct rl-indexed-select-iter (base))
 
 (struct rl-equiv-join-iter (iter1 table2))
+
+(define players-table
+  (rl-table "players-table"
+            '("pno" "pname" "pteam")
+            '((1 "QDU.Sumoon" "Qingdao University")
+              (2 "BUG.Chu1gda" "BUGaming")
+              (3 "ICE.1000" "Internal Compiler Error")
+              (4 "CHUK-SZ.ZYF" "CHinese University of HongKong (Shenzhen)"))))
+
+(define tools-table
+  (rl-table "tools-table"
+            '("tno" "tname" "tvendor")
+            '((1 "Dev-CPP" "ACM-ICPC")
+              (2 "Intellij-IDEA" "Jetbrains")
+              (3 "QtCreator" "Digia")
+              (4 "CLion" "Jetbrains"))))
+
+(define players-tools-table
+  (rl-table "players-tools-table"
+            '("pno1" "tno1")
+            '((1 1)
+              (2 3)
+              (3 2)
+              (4 4))))
+
+(define players-table-iter (rl-build-basic-iter players-table))
+
+(define tools-table-iter (rl-build-basic-iter tools-table))
+
+(define players-tools-table-iter (rl-build-basic-iter players-tools-table))
+
+(define jetbrains-tools-table-iter
+  (rl-build-select-iter tools-table-iter (list equal? (rl-ref "tvendor") "Jetbrains")))
+
+(define three-cartesian-iter
+  (rl-build-cartesian-iter (rl-build-cartesian-iter players-table-iter 
+                                                    tools-table-iter) 
+                           players-tools-table-iter))
+
+(rl-iter-traverse players-table-iter)
+
+(rl-iter-traverse jetbrains-tools-table-iter)
+
+(rl-iter-traverse three-cartesian-iter)
