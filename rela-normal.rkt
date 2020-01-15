@@ -1,7 +1,8 @@
-#lang debug racket
+#lang racket
 
 (require racket/format)
 (require racket/trace)
+(require errortrace)
 
 ; sometimes useful for debugging
 (define (id x) x)
@@ -60,7 +61,7 @@
 (define (rl-iter-rewind iter)
   (let* ([repr (rl-iter-repr iter)]
          [procs (rl-iter-procset iter)]
-         [rewind-proc (rl-iter-procs-rewind iter)])
+         [rewind-proc (rl-iter-procs-rewind procs)])
     (rl-iter (rewind-proc repr) procs)))
 
 (define (rl-iter-name iter)
@@ -114,16 +115,24 @@
 
 (define (rl-build-cartesian-iter base1 base2)
   (define (rl-cartesian-iter-get cartesian-iter)
-  (let ([base1 (rl-cartesian-iter-base1 cartesian-iter)]
-        [base2 (rl-cartesian-iter-base2 cartesian-iter)])
-    (append (rl-iter-get base1) (rl-iter-get base2))))
-  (define (rl-cartesian-iter-next cartesian-iter)
     (let ([base1 (rl-cartesian-iter-base1 cartesian-iter)]
           [base2 (rl-cartesian-iter-base2 cartesian-iter)])
-      (cond [(rl-iter-test base1) (error "iterator at end")]
+      ; (displayln (rl-iter-name base1))
+      ; (displayln (rl-iter-name base2))
+      (append (rl-iter-get base1) (rl-iter-get base2))))
+  (define (rl-cartesian-iter-next cartesian-iter)
+    (define (rl-cartesian-next-post-check cartesian-iter)
+      (let ([base1 (rl-cartesian-iter-base1 cartesian-iter)]
+            [base2 (rl-cartesian-iter-base2 cartesian-iter)])
+        (if (rl-iter-test base2)
+            (rl-cartesian-iter-next cartesian-iter)
+            cartesian-iter)))
+    (let ([base1 (rl-cartesian-iter-base1 cartesian-iter)]
+          [base2 (rl-cartesian-iter-base2 cartesian-iter)])
+      (cond [(rl-iter-test base1) (error "cartesian iterator at end")]
             [(rl-iter-test base2) (rl-cartesian-iter (rl-iter-next base1)
                                                      (rl-iter-next (rl-iter-rewind base2)))]
-            [else (rl-cartesian-iter base1 (rl-iter-next base2))])))
+            [else (rl-cartesian-next-post-check (rl-cartesian-iter base1 (rl-iter-next base2)))])))
   (define (rl-cartesian-iter-test cartesian-iter)
     (let ([base1 (rl-cartesian-iter-base1 cartesian-iter)])
       (rl-iter-test base1)))
@@ -164,8 +173,8 @@
          [all-column-selectors (rl-build-all-column-selectors base-columns column-names)])
     (define (rl-projection-iter-get projection-iter)
       (let ([cur-tuple (rl-iter-get projection-iter)])
-               (map (lambda (f) (f cur-tuple))
-                    all-column-selectors)))
+        (map (lambda (f) (f cur-tuple))
+             all-column-selectors)))
     (define (rl-projection-iter-next projection-iter)
       (let ([base (rl-projection-iter-base projection-iter)])
         (rl-projection-iter (rl-iter-next base))))
