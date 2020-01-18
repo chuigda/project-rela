@@ -10,6 +10,9 @@
 ; making eval work
 (current-namespace (make-base-namespace))
 
+; a shorthand
+(define (not-null? blah) (not (null? blah)))
+
 ; we need this for tree structure traversing
 (define (map-recur proc x)
   (define (map-one item)
@@ -37,9 +40,16 @@
          (display-tuples (rl-table-tuples table))))
 
 ; interface of dynamic method dispatch
-(struct rl-iter-procs (get next test rewind name columns))
+(struct rl-iter-procs (get next test rewind name columns indexable-check index))
 
 (struct rl-iter (repr procset))
+
+; only some of iterators supports indexed lookup
+(define (rl-iter-indexable? iter field)
+  (let* ([iter-procs (rl-iter-procset iter)]
+         [iter-indexable-check (rl-iter-procs-indexable-check iter)])
+    (and (not-null? iter-indexable-check)
+         (iter-indexable-check field))))
 
 ; generic methods
 (define (rl-iter-get iter)
@@ -73,6 +83,12 @@
   (let ([repr (rl-iter-repr iter)]
         [columns-proc (rl-iter-procs-columns (rl-iter-procset iter))])
     (columns-proc repr)))
+
+(define (rl-iter-index iter column-name value)
+  (let* ([repr (rl-iter-repr iter)]
+         [procs (rl-iter-procset iter)]
+         [index (rl-iter-procs-index iter)])
+    (index repr column-name value)))
 
 ; phantom tuple, used when implementing basic-iter
 (struct rl-phantom-tuple ())
@@ -109,7 +125,9 @@
                                     rl-basic-iter-test
                                     rl-basic-iter-rewind
                                     rl-basic-iter-name
-                                    rl-basic-iter-columns)))
+                                    rl-basic-iter-columns
+                                    null
+                                    null)))
 
 (struct rl-cartesian-iter (base1 base2))
 
@@ -155,7 +173,9 @@
                                     rl-cartesian-iter-test
                                     rl-cartesian-iter-rewind
                                     rl-cartesian-iter-name
-                                    rl-cartesian-iter-columns)))
+                                    rl-cartesian-iter-columns
+                                    null
+                                    null)))
 
 (struct rl-projection-iter (base))
 
@@ -199,7 +219,9 @@
                                       rl-projection-iter-test
                                       rl-projection-iter-rewind
                                       rl-projection-iter-name
-                                      rl-projection-iter-columns))))
+                                      rl-projection-iter-columns
+                                      null
+                                      null))))
 
 (struct rl-select-iter (base))
 
@@ -249,7 +271,9 @@
                                       rl-select-iter-test
                                       rl-select-iter-rewind
                                       rl-select-iter-name
-                                      rl-select-iter-columns))))
+                                      rl-select-iter-columns
+                                      null
+                                      null))))
 
 (define (rl-iter-traverse iter)
   (displayln (rl-iter-name iter))
