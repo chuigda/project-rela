@@ -18,8 +18,8 @@
 
 ; this will be useful when constructing hash index for tables
 (define (list->hash list-of-pairs)
-  (foldl (lambda (the-hash pair) (hash-set (car pair) (cdr pair)))
-         (make-hash)
+  (foldl (lambda (pair the-hash) (hash-set the-hash (car pair) (cdr pair)))
+         (make-immutable-hash)
          list-of-pairs))
 
 ; we need this for tree structure traversing
@@ -35,7 +35,7 @@
 (define (rl-build-column-selector table-columns column-name)
   (let ([column-index (index-of table-columns column-name)])
     (if (equal? column-index false)
-        (error "column does not exist")
+        (error (string-append "column " column-name " does not exist"))
         (lambda (tuple) (list-ref tuple column-index)))))
 
 (define (rl-build-table name columns tuples . indexed-columns)
@@ -120,7 +120,7 @@
 (define (rl-iter-index iter column-name value)
   (let* ([repr (rl-iter-repr iter)]
          [procs (rl-iter-procset iter)]
-         [index (rl-iter-procs-index iter)])
+         [index (rl-iter-procs-index procs)])
     (index repr column-name value)))
 
 ; phantom tuple, used when implementing basic-iter
@@ -336,7 +336,8 @@
                   '((1 "QDU.Sumoon" "Qingdao University")
                     (2 "BUG.Chu1gda" "BUGaming")
                     (3 "ICE.1000" "Internal Compiler Error")
-                    (4 "CHUK-SZ.ZYF" "CHinese University of HongKong (Shenzhen)"))))
+                    (4 "CHUK-SZ.ZYF" "CHinese University of HongKong (Shenzhen)"))
+                  "pno" "pname"))
 
 (define tools-table
   (rl-build-table "tools-table"
@@ -344,7 +345,8 @@
                   '((1 "Dev-CPP" "ACM-ICPC")
                     (2 "Intellij-IDEA" "Jetbrains")
                     (3 "QtCreator" "Digia")
-                    (4 "CLion" "Jetbrains"))))
+                    (4 "CLion" "Jetbrains"))
+                  "tno" "tname"))
 
 (define players-tools-table
   (rl-build-table "players-tools-table"
@@ -352,9 +354,14 @@
                   '((1 1)
                     (2 3)
                     (3 2)
-                    (4 4))))
+                    (4 4))
+                  "pno1" "tno1"))
 
 (define players-table-iter (rl-build-basic-iter players-table))
+
+(writeln (rl-iter-index players-table-iter "pno" 2))
+(writeln (rl-iter-index players-table-iter "pname" "ICE.1000"))
+(writeln "")
 
 (define tools-table-iter (rl-build-basic-iter tools-table))
 
