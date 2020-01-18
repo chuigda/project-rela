@@ -325,9 +325,13 @@
                (rl-iter-traverse-int (rl-iter-next iter)))))
   (rl-iter-traverse-int (rl-iter-next iter)))
 
-(struct rl-indexed-select-iter (base))
+(struct rl-equiv-join-iter (iter1 iter2))
 
-(struct rl-equiv-join-iter (iter1 table2))
+(define (rl-build-equiv-join-iter iter1 iter2 iter1-column iter2-column)
+  (let ([iter1-extractor (rl-build-column-selector (rl-iter-columns iter1) iter1-column)]
+        [iter2-selector (rl-iter-index iter2 iter2-column)])
+    (define (rl-equiv-join-iter-get equiv-join-iter)
+      (unimplemented)))))
 
 (define players-table
   (rl-build-table "players-table"
