@@ -77,13 +77,6 @@
 
 (struct rl-iter (repr procset))
 
-; only some of iterators supports indexed lookup
-(define (rl-iter-indexable? iter field)
-  (let* ([iter-procs (rl-iter-procset iter)]
-         [iter-indexable-check (rl-iter-procs-indexable-check iter)])
-    (and (not-null? iter-indexable-check)
-         (iter-indexable-check field))))
-
 ; generic methods
 (define (rl-iter-get iter)
   (let ([repr (rl-iter-repr iter)]
@@ -117,11 +110,17 @@
         [columns-proc (rl-iter-procs-columns (rl-iter-procset iter))])
     (columns-proc repr)))
 
-(define (rl-iter-index iter column-name value)
+(define (rl-iter-indexable? iter field)
+  (let* ([iter-procs (rl-iter-procset iter)]
+         [iter-indexable-check (rl-iter-procs-indexable-check iter)])
+    (and (not-null? iter-indexable-check)
+         (iter-indexable-check field))))
+
+(define (rl-iter-index iter column-name)
   (let* ([repr (rl-iter-repr iter)]
          [procs (rl-iter-procset iter)]
          [index (rl-iter-procs-index procs)])
-    (index repr column-name value)))
+    (index repr column-name)))
 
 ; phantom tuple, used when implementing basic-iter
 (struct rl-phantom-tuple ())
@@ -158,14 +157,14 @@
       (if (null? indexed-columns)
           false
           (not (false? (index-of indexed-columns column-name))))))
-  (define (rl-basic-iter-index basic-iter column-name column-value)
+  (define (rl-basic-iter-index basic-iter column-name)
     (let* ([table (rl-basic-iter-table basic-iter)]
            [indexed-columns (rl-table-indexed-columns table)]
            [index-maps (rl-table-index-maps table)]
            [subscript (index-of indexed-columns column-name)])
       (if (false? subscript)
-           (error "column does not exist")
-             (hash-ref (list-ref index-maps subscript) column-value))))
+          (error "column does not exist")
+          (lambda (column-value) (hash-ref (list-ref index-maps subscript) column-value)))))
   (rl-iter #|repr|#  (rl-basic-iter table (rl-phantom-tuple))
            #|procs|# (rl-iter-procs rl-basic-iter-get
                                     rl-basic-iter-next
@@ -361,8 +360,8 @@
 
 (define players-table-iter (rl-build-basic-iter players-table))
 
-(writeln (rl-iter-index players-table-iter "pno" 2))
-(writeln (rl-iter-index players-table-iter "pname" "ICE.1000"))
+(writeln ((rl-iter-index players-table-iter "pno") 2))
+(writeln ((rl-iter-index players-table-iter "pname") "ICE.1000"))
 (displayln "")
 
 (define tools-table-iter (rl-build-basic-iter tools-table))
