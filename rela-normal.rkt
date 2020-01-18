@@ -336,7 +336,8 @@
                   '((1 "QDU.Sumoon" "Qingdao University")
                     (2 "BUG.Chu1gda" "BUGaming")
                     (3 "ICE.1000" "Internal Compiler Error")
-                    (4 "CHUK-SZ.ZYF" "CHinese University of HongKong (Shenzhen)"))
+                    (4 "CHUK-SZ.ZYF" "CHinese University of HongKong (Shenzhen)")
+                    (5 "ICE.Hoshino" "Internal Compilter Error"))
                   "pno" "pname"))
 
 (define tools-table
@@ -354,14 +355,15 @@
                   '((1 1)
                     (2 3)
                     (3 2)
-                    (4 4))
+                    (4 4)
+                    (5 2))
                   "pno1" "tno1"))
 
 (define players-table-iter (rl-build-basic-iter players-table))
 
 (writeln (rl-iter-index players-table-iter "pno" 2))
 (writeln (rl-iter-index players-table-iter "pname" "ICE.1000"))
-(writeln "")
+(displayln "")
 
 (define tools-table-iter (rl-build-basic-iter tools-table))
 
