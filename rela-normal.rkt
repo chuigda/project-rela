@@ -4,6 +4,9 @@
 (require racket/trace)
 (require errortrace)
 
+; unimplemented stuffs and todos
+(define (unimplemented) (error "unimplemented"))
+
 ; sometimes useful for debugging
 (define (id x) x)
 
@@ -13,6 +16,12 @@
 ; a shorthand
 (define (not-null? blah) (not (null? blah)))
 
+; this will be useful when constructing hash index for tables
+(define (list->hash list-of-pairs)
+  (foldl (lambda (the-hash pair) (hash-set (car pair) (cdr pair)))
+         (make-hash)
+         list-of-pairs))
+
 ; we need this for tree structure traversing
 (define (map-recur proc x)
   (define (map-one item)
@@ -20,7 +29,20 @@
   (map map-one x))
 
 ; basic table
-(struct rl-table (name columns tuples))
+(struct rl-table (name columns tuples indexed-columns index-maps))
+
+; used in many situations
+(define (rl-build-column-selector table-columns column-name)
+  (let ([column-index (index-of table-columns column-name)])
+    (if (equal? column-index false)
+        (error "column does not exist")
+        (lambda (tuple) (list-ref tuple column-index)))))
+
+(define (rl-build-table name columns tuples . indexed-columns)
+  ; TODO implement this
+  (if (null? indexed-columns) 
+      (rl-table name columns tuples null null)
+      (unimplemented)))
 
 ; for building name references in raw expressions
 (struct rl-ref (name))
@@ -179,12 +201,6 @@
 
 (struct rl-projection-iter (base))
 
-(define (rl-build-column-selector table-columns column-name)
-  (let ([column-index (index-of table-columns column-name)])
-    (if (equal? column-index false)
-        (error "column does not exist")
-        (lambda (tuple) (list-ref tuple column-index)))))
-
 (define (rl-build-projection-iter base column-names)
   (define (rl-build-all-column-selectors table-columns column-names)
     (map (lambda (column-name) (rl-build-column-selector table-columns column-name)) 
@@ -290,28 +306,28 @@
 (struct rl-equiv-join-iter (iter1 table2))
 
 (define players-table
-  (rl-table "players-table"
-            '("pno" "pname" "pteam")
-            '((1 "QDU.Sumoon" "Qingdao University")
-              (2 "BUG.Chu1gda" "BUGaming")
-              (3 "ICE.1000" "Internal Compiler Error")
-              (4 "CHUK-SZ.ZYF" "CHinese University of HongKong (Shenzhen)"))))
+  (rl-build-table "players-table"
+                  '("pno" "pname" "pteam")
+                  '((1 "QDU.Sumoon" "Qingdao University")
+                    (2 "BUG.Chu1gda" "BUGaming")
+                    (3 "ICE.1000" "Internal Compiler Error")
+                    (4 "CHUK-SZ.ZYF" "CHinese University of HongKong (Shenzhen)"))))
 
 (define tools-table
-  (rl-table "tools-table"
-            '("tno" "tname" "tvendor")
-            '((1 "Dev-CPP" "ACM-ICPC")
-              (2 "Intellij-IDEA" "Jetbrains")
-              (3 "QtCreator" "Digia")
-              (4 "CLion" "Jetbrains"))))
+  (rl-build-table "tools-table"
+                  '("tno" "tname" "tvendor")
+                  '((1 "Dev-CPP" "ACM-ICPC")
+                    (2 "Intellij-IDEA" "Jetbrains")
+                    (3 "QtCreator" "Digia")
+                    (4 "CLion" "Jetbrains"))))
 
 (define players-tools-table
-  (rl-table "players-tools-table"
-            '("pno1" "tno1")
-            '((1 1)
-              (2 3)
-              (3 2)
-              (4 4))))
+  (rl-build-table "players-tools-table"
+                  '("pno1" "tno1")
+                  '((1 1)
+                    (2 3)
+                    (3 2)
+                    (4 4))))
 
 (define players-table-iter (rl-build-basic-iter players-table))
 
