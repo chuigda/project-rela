@@ -39,10 +39,21 @@
         (lambda (tuple) (list-ref tuple column-index)))))
 
 (define (rl-build-table name columns tuples . indexed-columns)
-  ; TODO implement this
-  (if (null? indexed-columns) 
-      (rl-table name columns tuples null null)
-      (unimplemented)))
+  (define (rl-build-one-index indexed-column)
+    (let* ([column-selector (rl-build-column-selector columns indexed-column)]
+           [tuples-transformer (lambda (tuple) (cons (column-selector tuple) tuple))])
+      (list->hash (map tuples-transformer tuples))))
+  (if (null? indexed-columns)
+      (rl-table name 
+                columns
+                tuples
+                null
+                null)
+      (rl-table name
+                columns
+                tuples
+                indexed-columns
+                (map rl-build-one-index indexed-columns))))
 
 ; for building name references in raw expressions
 (struct rl-ref (name))
@@ -141,6 +152,20 @@
   (define (rl-basic-iter-columns basic-iter)
     (let ([table (rl-basic-iter-table basic-iter)])
       (rl-table-columns table)))
+  (define (rl-basic-iter-indexable-check basic-iter column-name)
+    (let* ([table (rl-basic-iter-table basic-iter)]
+           [indexed-columns (rl-table-indexed-columns table)])
+      (if (null? indexed-columns)
+          false
+          (not (false? (index-of indexed-columns column-name))))))
+  (define (rl-basic-iter-index basic-iter column-name column-value)
+    (let* ([table (rl-basic-iter-table basic-iter)]
+           [indexed-columns (rl-table-indexed-columns table)]
+           [index-maps (rl-table-index-maps table)]
+           [subscript (index-of indexed-columns column-name)])
+      (if (false? subscript)
+           (error "column does not exist")
+             (hash-ref (list-ref index-maps subscript) column-value))))
   (rl-iter #|repr|#  (rl-basic-iter table (rl-phantom-tuple))
            #|procs|# (rl-iter-procs rl-basic-iter-get
                                     rl-basic-iter-next
@@ -148,8 +173,8 @@
                                     rl-basic-iter-rewind
                                     rl-basic-iter-name
                                     rl-basic-iter-columns
-                                    null
-                                    null)))
+                                    rl-basic-iter-indexable-check
+                                    rl-basic-iter-index)))
 
 (struct rl-cartesian-iter (base1 base2))
 
