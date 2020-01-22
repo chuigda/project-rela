@@ -17,6 +17,15 @@
 ; a shorthand
 (define (not-null? blah) (not (null? blah)))
 
+; hard-coded comparators, considered nasty, but out data types are limited to numbers and strings
+(define (less? x y)
+  (cond [(number? x) (< x y)]
+        [(string? x) (string<? x y)]))
+
+(define (greater? x y)
+  (cond [(number? x) (> x y)]
+        [(string? x) (string>? x y)]))
+
 ; we are currently in need of a binary tree for ordered indexing mechanism
 (struct bt-node (key value left-child right-child))
 
@@ -29,14 +38,14 @@
             [node-value (bt-node-value node)]
             [left-child (bt-node-left-child node)]
             [right-child (bt-node-right-child node)])
-        (cond [(> node-key key) (bt-node node-key
-                                         node-value
-                                         (bt-insert left-child key value)
-                                         right-child)]
-              [(< node-key key) (bt-node node-key
-                                         node-value
-                                         left-child
-                                         (bt-insert right-child key value))]
+        (cond [(greater? node-key key) (bt-node node-key
+                                                node-value
+                                                (bt-insert left-child key value)
+                                                right-child)]
+              [(less? node-key key) (bt-node node-key
+                                             node-value
+                                             left-child
+                                             (bt-insert right-child key value))]
               [(equal? node-key key) (bt-node key
                                               value
                                               left-child
@@ -44,14 +53,14 @@
 
 (define (bt-lookup node key)
   (if (null? node)
-      null
+      false
       (let ([node-key (bt-node-key node)]
             [node-value (bt-node-value node)]
             [left-child (bt-node-left-child node)]
             [right-child (bt-node-right-child node)])
         (cond [(equal? node-key key) node-value]
-              [(> node-key key) (bt-lookup left-child key)]
-              [(< node-key key) (bt-lookup right-child key)]))))
+              [(greater? node-key key) (bt-lookup left-child key)]
+              [(less? node-key key) (bt-lookup right-child key)]))))
 
 (define (bt-traverse node)
   (if (null? node)
@@ -87,13 +96,17 @@
 (check-equal? (bt-lookup bin-tree-1 3) "GZS")
 (check-equal? (bt-lookup bin-tree-1 5) "WXB")
 (check-equal? (bt-lookup bin-tree-1 1) "CTZ")
-(check-equal? (bt-lookup bin-tree-1 4) null)
+(check-false (bt-lookup bin-tree-1 4))
   
 ; this will be useful when constructing hash index for tables
 (define (list->hash list-of-pairs)
   (foldl (lambda (pair the-hash) (hash-set the-hash (car pair) (cdr pair)))
          (make-immutable-hash)
          list-of-pairs))
+
+; a convenient shorthand for hash-ref
+(define (hash-ref-safe the-hash key)
+  (hash-ref the-hash key false))
 
 ; we need this for tree structure traversing
 (define (map-recur proc x)
@@ -115,7 +128,7 @@
   (define (rl-build-one-index indexed-column)
     (let* ([column-selector (rl-build-column-selector columns indexed-column)]
            [tuples-transformer (lambda (tuple) (cons (column-selector tuple) tuple))])
-      (list->hash (map tuples-transformer tuples))))
+      (list->bin-tree (map tuples-transformer tuples))))
   (if (null? indexed-columns)
       (rl-table name 
                 columns
@@ -237,7 +250,7 @@
            [subscript (index-of indexed-columns column-name)])
       (if (false? subscript)
           (error "column does not exist")
-          (lambda (column-value) (hash-ref (list-ref index-maps subscript) column-value)))))
+          (lambda (column-value) (bt-lookup (list-ref index-maps subscript) column-value)))))
   (rl-iter #|repr|#  (rl-basic-iter table (rl-phantom-tuple))
            #|procs|# (rl-iter-procs rl-basic-iter-get
                                     rl-basic-iter-next
