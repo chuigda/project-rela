@@ -44,6 +44,25 @@
         false
         (cdr (vector-ref svec subscript)))))
 
+(define (distance x y) (abs (- x y)))
+
+(define (svec-lower-bound svec key)
+  (define (lower-bound-int idx1 idx2)
+    (let ([idx-distance (distance idx1 idx2)])
+      (if (= idx-distance 0) idx1
+          (let* ([step (quotient (distance idx1 idx2) 2)]
+                 [mid (+ idx1 step)]
+                 [mid-kv (vector-ref svec mid)]
+                 [mid-key (car mid-kv)])
+            (cond [(greater? mid-key key) (lower-bound-int idx1 mid)]
+                  [(equal? mid-key key) mid]
+                  [(less? mid-key key) (lower-bound-int (+ mid 1) idx2)])))))
+  (let* ([svec-length (vector-length svec)]
+         [lower-bound-index (lower-bound-int 0 svec-length)])
+    (cond [(false? lower-bound-index) false]
+          [(= lower-bound-index svec-length) false]
+          [else lower-bound-index])))
+
 ; testcase for sorted vectors
 (define svec-1
   (list->svec
@@ -57,6 +76,36 @@
 (check-equal? (svec-ref svec-1 5) "WXB")
 (check-equal? (svec-ref svec-1 1) "CTZ")
 (check-false (svec-ref svec-1 4))
+
+(check-equal? (svec-lower-bound svec-1 4) 3)
+(check-equal? (svec-lower-bound svec-1 5) 3)
+(check-equal? (svec-lower-bound svec-1 3) 2)
+(check-equal? (svec-lower-bound svec-1 2) 1)
+(check-equal? (svec-lower-bound svec-1 1) 0)
+(check-equal? (svec-lower-bound svec-1 0) 0)
+(check-equal? (svec-lower-bound svec-1 -1) 0)
+(check-false (svec-ref svec-1 6))
+
+(define svec-2
+  (list->svec
+    (list (cons 1 1)
+          (cons 2 2)
+          (cons 4 4)
+          (cons 5 5)
+          (cons 6 6)
+          (cons 9 9))))
+
+(check-equal? (svec-lower-bound svec-2 0) 0)
+(check-equal? (svec-lower-bound svec-2 1) 0)
+(check-equal? (svec-lower-bound svec-2 2) 1)
+(check-equal? (svec-lower-bound svec-2 3) 2)
+(check-equal? (svec-lower-bound svec-2 4) 2)
+(check-equal? (svec-lower-bound svec-2 5) 3)
+(check-equal? (svec-lower-bound svec-2 6) 4)
+(check-equal? (svec-lower-bound svec-2 7) 5)
+(check-equal? (svec-lower-bound svec-2 8) 5)
+(check-equal? (svec-lower-bound svec-2 9) 5)
+(check-false (svec-lower-bound svec-2 10))
 
 ; we need this for tree structure traversing
 (define (map-recur proc x)
