@@ -3,6 +3,7 @@
 (require racket/format)
 (require racket/trace)
 (require errortrace)
+(require rackunit)
 
 ; unimplemented stuffs and todos
 (define (unimplemented) (error "unimplemented"))
@@ -16,6 +17,78 @@
 ; a shorthand
 (define (not-null? blah) (not (null? blah)))
 
+; we are currently in need of a binary tree for ordered indexing mechanism
+(struct bt-node (key value left-child right-child))
+
+(define (bt-create) null)
+
+(define (bt-insert node key value)
+  (if (null? node)
+      (bt-node key value null null)
+      (let ([node-key (bt-node-key node)]
+            [node-value (bt-node-value node)]
+            [left-child (bt-node-left-child node)]
+            [right-child (bt-node-right-child node)])
+        (cond [(> node-key key) (bt-node node-key
+                                         node-value
+                                         (bt-insert left-child key value)
+                                         right-child)]
+              [(< node-key key) (bt-node node-key
+                                         node-value
+                                         left-child
+                                         (bt-insert right-child key value))]
+              [(equal? node-key key) (bt-node key
+                                              value
+                                              left-child
+                                              right-child)]))))
+
+(define (bt-lookup node key)
+  (if (null? node)
+      null
+      (let ([node-key (bt-node-key node)]
+            [node-value (bt-node-value node)]
+            [left-child (bt-node-left-child node)]
+            [right-child (bt-node-right-child node)])
+        (cond [(equal? node-key key) node-value]
+              [(> node-key key) (bt-lookup left-child key)]
+              [(< node-key key) (bt-lookup right-child key)]))))
+
+(define (bt-traverse node)
+  (if (null? node)
+      false
+      (let ([node-key (bt-node-key node)]
+            [node-value (bt-node-value node)]
+            [left-child (bt-node-left-child node)]
+            [right-child (bt-node-right-child node)])
+        (begin
+          (bt-traverse left-child)
+          (display node-key)
+          (display " -> ")
+          (displayln node-value)
+          (bt-traverse right-child)
+          false))))
+
+; this will be useful when constructing ordered index for tables
+; in memory binary search trees should be equivalent to external storage B-trees
+(define (list->bin-tree list-of-pairs)
+  (foldl (lambda (pair the-bt) (bt-insert the-bt (car pair) (cdr pair)))
+         (bt-create)
+         list-of-pairs))
+
+; testcase for binary tree
+(define bin-tree-1
+  (list->bin-tree
+    (list (cons 2 "CKX")
+          (cons 1 "CTZ")
+          (cons 3 "GZS")
+          (cons 5 "WXB"))))
+
+(check-equal? (bt-lookup bin-tree-1 2) "CKX")
+(check-equal? (bt-lookup bin-tree-1 3) "GZS")
+(check-equal? (bt-lookup bin-tree-1 5) "WXB")
+(check-equal? (bt-lookup bin-tree-1 1) "CTZ")
+(check-equal? (bt-lookup bin-tree-1 4) null)
+  
 ; this will be useful when constructing hash index for tables
 (define (list->hash list-of-pairs)
   (foldl (lambda (pair the-hash) (hash-set the-hash (car pair) (cdr pair)))
@@ -331,7 +404,8 @@
   (let ([iter1-extractor (rl-build-column-selector (rl-iter-columns iter1) iter1-column)]
         [iter2-selector (rl-iter-index iter2 iter2-column)])
     (define (rl-equiv-join-iter-get equiv-join-iter)
-      (unimplemented)))))
+      (unimplemented))
+    (unimplemented)))
 
 (define players-table
   (rl-build-table "players-table"
@@ -351,7 +425,7 @@
                     (3 "QtCreator" "Digia")
                     (4 "CLion" "Jetbrains"))
                   "tno" "tname"))
-
+  
 (define players-tools-table
   (rl-build-table "players-tools-table"
                   '("pno1" "tno1")
