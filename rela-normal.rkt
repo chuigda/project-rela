@@ -2,6 +2,7 @@
 
 (require racket/format)
 (require racket/trace)
+(require srfi/43)
 (require errortrace)
 (require rackunit)
 
@@ -26,7 +27,38 @@
   (cond [(number? x) (> x y)]
         [(string? x) (string>? x y)]))
 
-; we are currently in need of a binary tree for ordered indexing mechanism
+; ordered indexing mechanism implemented with sorted vectors
+(define (list->svec list-of-pairs)
+  (vector-sort (list->vector list-of-pairs)
+               (lambda (p1 p2) (less? (car p1) (car p2)))))
+
+(define (svec-ref svec key)
+  (define (cmp x1 x2)
+    (cond [(pair? x1) (cmp (car x1) x2)]
+          [(pair? x2) (cmp x1 (car x2))]
+          [(equal? x1 x2) 0]
+          [(less? x1 x2) -1]
+          [(greater? x1 x2) 1]))
+  (let ([subscript (vector-binary-search svec key cmp)])
+    (if (false? subscript)
+        false
+        (cdr (vector-ref svec subscript)))))
+
+; testcase for sorted vectors
+(define svec-1
+  (list->svec
+    (list (cons 2 "CKX")
+          (cons 1 "CTZ")
+          (cons 3 "GZS")
+          (cons 5 "WXB"))))
+
+(check-equal? (svec-ref svec-1 2) "CKX")
+(check-equal? (svec-ref svec-1 3) "GZS")
+(check-equal? (svec-ref svec-1 5) "WXB")
+(check-equal? (svec-ref svec-1 1) "CTZ")
+(check-false (svec-ref svec-1 4))
+
+; ordered indexing mechanism implemented with binary trees
 (struct bt-node (key value left-child right-child))
 
 (define (bt-create) null)
