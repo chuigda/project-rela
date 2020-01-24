@@ -400,6 +400,40 @@
                                       null
                                       null))))
 
+(struct rl-equiv-join-iter (iter1))
+
+(define (rl-build-equiv-join-iter iter1 iter2 iter1-column iter2-column)
+  (let ([iter1-column-selector (rl-build-column-selector (rl-iter-columns iter1) iter1-column)]
+        [iter2-indexer (rl-iter-index iter2 iter2-column)])
+    (define (rl-equiv-join-iter-get equiv-join-iter)
+      (let* ([iter1 (rl-equiv-join-iter-iter1 equiv-join-iter)]
+             [iter1-tuple (rl-iter-get iter1)]
+             [iter1-key (iter1-column-selector iter1-tuple)]
+             [iter2-tuple (iter2-indexer iter1-key)])
+          (append iter1-tuple iter2-tuple)))
+    (define (rl-equiv-join-iter-next equiv-join-iter)
+      (define (rl-equiv-join-iter-next-int prim-iter)
+        (if (rl-iter-test prim-iter)
+            prim-iter
+            (let* ([iter1-tuple (rl-iter-get prim-iter)]
+                   [iter1-key (iter1-column-selector iter1-tuple)]
+                   [iter2-tuple (iter2-indexer iter1-key)])
+              (if (false? iter2-tuple)
+                  (rl-equiv-join-iter-next-int (rl-iter-next prim-iter))
+                  prim-iter))))
+      (let ([iter1 (rl-equiv-join-iter-iter1 equiv-join-iter)])
+        (rl-equiv-join-iter (rl-equiv-join-iter-next-int (rl-iter-next iter1)))))
+    (define (rl-equiv-join-iter-test equiv-join-iter) (unimplemented))
+    (define (rl-equiv-join-iter-rewind equiv-join-iter) (unimplemented))
+    (define (rl-equiv-join-iter-name equiv-join-iter) (unimplemented))
+    (define (rl-equiv-join-iter-columns equiv-join-iter) (unimplemented))
+    (unimplemented)))
+
+(struct rl-ranged-iter (base))
+
+(define (rl-build-ranged-iter base column lower-bound upper-bound)
+  (unimplemented))
+
 (define (rl-iter-traverse iter)
   (displayln (rl-iter-name iter))
   (displayln (~a (rl-iter-columns iter)))
@@ -409,15 +443,6 @@
         (begin (writeln (rl-iter-get iter))
                (rl-iter-traverse-int (rl-iter-next iter)))))
   (rl-iter-traverse-int (rl-iter-next iter)))
-
-(struct rl-equiv-join-iter (iter1 iter2))
-
-(define (rl-build-equiv-join-iter iter1 iter2 iter1-column iter2-column)
-  (let ([iter1-extractor (rl-build-column-selector (rl-iter-columns iter1) iter1-column)]
-        [iter2-selector (rl-iter-index iter2 iter2-column)])
-    (define (rl-equiv-join-iter-get equiv-join-iter)
-      (unimplemented))
-    (unimplemented)))
 
 (define players-table
   (rl-build-table "players-table"
