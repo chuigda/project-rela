@@ -9,6 +9,9 @@
 ; unimplemented stuffs and todos
 (define (unimplemented) (error "unimplemented"))
 
+; for marking unused parameters
+(define (unused x . xs) (void))
+
 ; sometimes useful for debugging
 (define (id x) x)
 
@@ -423,11 +426,42 @@
                   prim-iter))))
       (let ([iter1 (rl-equiv-join-iter-iter1 equiv-join-iter)])
         (rl-equiv-join-iter (rl-equiv-join-iter-next-int (rl-iter-next iter1)))))
-    (define (rl-equiv-join-iter-test equiv-join-iter) (unimplemented))
-    (define (rl-equiv-join-iter-rewind equiv-join-iter) (unimplemented))
-    (define (rl-equiv-join-iter-name equiv-join-iter) (unimplemented))
-    (define (rl-equiv-join-iter-columns equiv-join-iter) (unimplemented))
-    (unimplemented)))
+    (define (rl-equiv-join-iter-test equiv-join-iter)
+      (let ([iter1 (rl-equiv-join-iter-iter1 equiv-join-iter)])
+        (rl-iter-test iter1)))
+    (define (rl-equiv-join-iter-rewind equiv-join-iter)
+      (let ([iter1 (rl-equiv-join-iter-iter1 equiv-join-iter)])
+        (rl-equiv-join-iter (rl-iter-rewind iter1))))
+    (define (rl-equiv-join-iter-name equiv-join-iter)
+      (unused equiv-join-iter)
+      (string-append "<" (rl-iter-name iter1) " |x| " (rl-iter-name iter2) ">"))
+    (define (rl-equiv-join-iter-columns equiv-join-iter)
+      (unused equiv-join-iter)
+      (append (rl-iter-columns iter1) (rl-iter-columns iter2)))
+    (define (rl-equiv-join-iter-indexable-check equiv-join-iter column-name)
+      (let ([iter1 (rl-equiv-join-iter-iter1 equiv-join-iter)])
+        (rl-iter-indexable? iter1 column-name)))
+    (define (rl-equiv-join-iter-index equiv-join-iter column-name)
+      (let* ([iter1 (rl-equiv-join-iter-iter1)]
+             [iter1-index (rl-iter-index iter1)])
+        (lambda (column-value)
+          (let ([iter1-tuple (iter1-index column-value)])
+            (if (false? iter1-tuple)
+                false
+                (let* ([iter1-key (iter1-column-selector iter1-tuple)]
+                       [iter2-tuple (iter2-indexer iter1-key)])
+                  (if (false? iter2-tuple)
+                      false
+                      (append iter1-tuple iter2-tuple))))))))
+    (rl-iter #|repr|#  (rl-equiv-join-iter iter1)
+             #|procs|# (rl-iter-procs rl-equiv-join-iter-get
+                                      rl-equiv-join-iter-next
+                                      rl-equiv-join-iter-test
+                                      rl-equiv-join-iter-rewind
+                                      rl-equiv-join-iter-name
+                                      rl-equiv-join-iter-columns
+                                      null
+                                      null))))
 
 (struct rl-ranged-iter (base))
 
@@ -487,8 +521,8 @@
   (rl-build-select-iter tools-table-iter (list equal? (rl-ref "tvendor") "Jetbrains")))
 
 (define three-cartesian-iter
-  (rl-build-cartesian-iter (rl-build-cartesian-iter players-table-iter 
-                                                    tools-table-iter) 
+  (rl-build-cartesian-iter (rl-build-cartesian-iter players-table-iter
+                                                    tools-table-iter)
                            players-tools-table-iter))
 
 (define selected-iter1
@@ -502,6 +536,8 @@
 
 (define final-selected-iter
   (rl-build-select-iter final-projection-iter (list equal? (rl-ref "tvendor") "Jetbrains")))
+
+(define players-tools-table-equiv-join-iter unimplemented)
 
 (rl-iter-traverse players-table-iter)
 
