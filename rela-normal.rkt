@@ -2,6 +2,7 @@
 
 (require racket/format)
 (require racket/trace)
+(require srfi/2)
 (require srfi/43)
 (require errortrace)
 (require rackunit)
@@ -445,14 +446,10 @@
       (let* ([iter1 (rl-equiv-join-iter-iter1)]
              [iter1-index (rl-iter-index iter1)])
         (lambda (column-value)
-          (let ([iter1-tuple (iter1-index column-value)])
-            (if (false? iter1-tuple)
-                false
-                (let* ([iter1-key (iter1-column-selector iter1-tuple)]
-                       [iter2-tuple (iter2-indexer iter1-key)])
-                  (if (false? iter2-tuple)
-                      false
-                      (append iter1-tuple iter2-tuple))))))))
+          (and-let* ([iter1-tuple (iter1-index column-value)]
+                     [iter1-key (iter1-column-selector iter1-tuple)]
+                     [iter2-tuple (iter2-indexer iter1-key)])
+             (append iter1-tuple iter2-tuple)))))
     (rl-iter #|repr|#  (rl-equiv-join-iter iter1)
              #|procs|# (rl-iter-procs rl-equiv-join-iter-get
                                       rl-equiv-join-iter-next
@@ -460,8 +457,8 @@
                                       rl-equiv-join-iter-rewind
                                       rl-equiv-join-iter-name
                                       rl-equiv-join-iter-columns
-                                      null
-                                      null))))
+                                      rl-equiv-join-iter-indexable-check
+                                      rl-equiv-join-iter-index))))
 
 (struct rl-ranged-iter (base))
 
@@ -517,6 +514,8 @@
 
 (define players-tools-table-iter (rl-build-basic-iter players-tools-table))
 
+(define pt-iter players-tools-table-iter)
+
 (define jetbrains-tools-table-iter
   (rl-build-select-iter tools-table-iter (list equal? (rl-ref "tvendor") "Jetbrains")))
 
@@ -537,8 +536,6 @@
 (define final-selected-iter
   (rl-build-select-iter final-projection-iter (list equal? (rl-ref "tvendor") "Jetbrains")))
 
-(define players-tools-table-equiv-join-iter unimplemented)
-
 (rl-iter-traverse players-table-iter)
 
 (rl-iter-traverse jetbrains-tools-table-iter)
@@ -546,3 +543,11 @@
 (rl-iter-traverse final-projection-iter)
 
 (rl-iter-traverse final-selected-iter)
+
+(define players-tools-equiv-join-iter
+  (rl-build-equiv-join-iter
+   (rl-build-equiv-join-iter pt-iter players-table-iter "pno1" "pno")
+   tools-table-iter "tno1" "tno"))
+
+(rl-iter-traverse players-tools-equiv-join-iter)
+
