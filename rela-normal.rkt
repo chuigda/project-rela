@@ -19,6 +19,18 @@
 ; sometimes useful for debugging
 (define (id x) x)
 
+(define (display-n-ret x)
+  (display x)
+  x)
+
+(define (displayln-n-ret x)
+  (displayln x)
+  x)
+
+; procedure version of builtin special form `and`/`or`, does NOT have short circuit eval!
+(define (and-proc x y) (and x y))
+(define (or-proc x y) (or x y))
+
 ; making eval work
 (current-namespace (make-base-namespace))
 
@@ -33,6 +45,19 @@
 (define (greater? x y)
   (cond [(number? x) (> x y)]
         [(string? x) (string>? x y)]))
+
+(define (less-or-eq? x y) (or (less? x y) (equal? x y)))
+
+(define (greater-or-eq? x y) (or (greater? x y) (equal? x y)))
+
+
+(check-false (less-or-eq? 13 12))
+(check-true (less-or-eq? 12 12))
+(check-true (less-or-eq? 11 12))
+
+(check-true (greater-or-eq? 13 12))
+(check-true (greater-or-eq? 12 12))
+(check-false (greater-or-eq? 11 12))
 
 ; ordered indexing mechanism implemented with sorted vectors
 (define (list->svec list-of-pairs)
@@ -441,30 +466,36 @@
                                       rl-equiv-join-iter-indexable-check
                                       rl-equiv-join-iter-index))))
 
-(struct rl-ranged-iter (base))
+(struct rl-regular-ranged-iter (base))
 
-(define (rl-build-ranged-iter base column lower-bound upper-bound)
+(struct rl-indexed-ranged-iter (subscript))
+
+(define (rl-build-regular-ranged-iter base column lower-bound upper-bound)
+  (define (bound-check value)
+    (and (if (not-null? lower-bound)
+             (greater-or-eq? value lower-bound)
+             true)
+         (if (not-null? upper-bound)
+             (less-or-eq? value upper-bound)
+             true)))
   (let* ([base-columns (rl-iter-columns base)]
          [column-selector (rl-build-column-selector base-columns column)])
     (define (rl-ranged-iter-get ranged-iter)
-      (let ([base (rl-ranged-iter-base ranged-iter)])
+      (let ([base (rl-regular-ranged-iter-base ranged-iter)])
         (rl-iter-get base)))
     (define (rl-ranged-iter-next ranged-iter)
-      (define (rl-ranged-iter-next-int base-iter)
-        (cond [(rl-iter-test base-iter) base-iter]
-              [(and (not-null? lower-bound) (less? (rl-iter-get base-iter)))
-               (rl-ranged-iter-next-int (rl-iter-next base-iter))]
-              [(and (not-null? upper-bound) (greater? (rl-iter-get base-iter) upper-bound))
-               base-iter]
-              [else base-iter]))
-      (rl-ranged-iter (rl-ranged-iter-next-int (rl-ranged-iter-base ranged-iter))))
+      (define (rl-ranged-iter-next-int base)
+        (cond [(rl-iter-test base) base]
+              [(bound-check (column-selector (rl-iter-get base))) base]
+              [else (rl-ranged-iter-next-int (rl-iter-next base))]))
+      (let* ([base (rl-regular-ranged-iter-base ranged-iter)]
+             [base-next (rl-iter-next base)])
+        (rl-regular-ranged-iter (rl-ranged-iter-next-int base-next))))
     (define (rl-ranged-iter-test ranged-iter)
-      (let ([base (rl-ranged-iter-base ranged-iter)])
-        (cond [(rl-iter-test base) true]
-              [(greater? (rl-iter-get base) upper-bound) true]
-              [else false])))
+      (let ([base (rl-regular-ranged-iter-base ranged-iter)])
+        (rl-iter-test base)))
     (define (rl-ranged-iter-rewind ranged-iter)
-      (rl-ranged-iter (rl-iter-rewind (rl-ranged-iter-base ranged-iter))))
+      (rl-regular-ranged-iter (rl-iter-rewind (rl-regular-ranged-iter-base ranged-iter))))
     (define (rl-ranged-iter-name)
       (string-append "RANGE<" (rl-iter-name base) "; "
                      column "; "
@@ -472,7 +503,7 @@
                      (~a upper-bound) ">"))
     (define (rl-ranged-iter-columns)
       (rl-iter-columns base))
-    (rl-iter #|repr|#  (rl-ranged-iter base)
+    (rl-iter #|repr|#  (rl-regular-ranged-iter base)
              #|procs|# (rl-iter-procs rl-ranged-iter-get
                                       rl-ranged-iter-next
                                       rl-ranged-iter-test
@@ -569,7 +600,7 @@
 (rl-iter-traverse players-tools-equiv-join-iter)
 
 (define students-table
-  (rl-build-table "students"
+  (rl-build-table "students-table"
                   '("name" "score")
                   '(("dyj" 59)
                     ("ctz" 80)
@@ -578,5 +609,12 @@
                     ("lhz" 65)
                     ("glc" 55))
                   "score"))
+(define students-table-iter
+  (rl-build-basic-iter students-table))
 
+(define students-table-ranged-iter
+  (rl-build-regular-ranged-iter students-table-iter "score" 60 79))
 
+(rl-iter-traverse students-table-iter)
+
+(rl-iter-traverse students-table-ranged-iter)
