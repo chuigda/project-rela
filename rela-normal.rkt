@@ -190,26 +190,22 @@
     (rl-iter (rewind-proc repr) procs)))
 
 (define (rl-iter-name iter)
-  (let ([repr (rl-iter-repr iter)]
-        [name-proc (rl-iter-procs-name (rl-iter-procset iter))])
-    (name-proc repr)))
+  (let ([name-proc (rl-iter-procs-name (rl-iter-procset iter))])
+    (name-proc)))
 
 (define (rl-iter-columns iter)
-  (let ([repr (rl-iter-repr iter)]
-        [columns-proc (rl-iter-procs-columns (rl-iter-procset iter))])
-    (columns-proc repr)))
+  (let ([columns-proc (rl-iter-procs-columns (rl-iter-procset iter))])
+    (columns-proc)))
 
-(define (rl-iter-indexable? iter field)
-  (let* ([iter-procs (rl-iter-procset iter)]
-         [iter-indexable-check (rl-iter-procs-indexable-check iter)])
+(define (rl-iter-indexable? iter indexed-field)
+  (let* ([iter-indexable-check (rl-iter-procs-indexable-check iter)])
     (and (not-null? iter-indexable-check)
-         (iter-indexable-check field))))
+         (iter-indexable-check indexed-field))))
 
 (define (rl-iter-index iter column-name)
-  (let* ([repr (rl-iter-repr iter)]
-         [procs (rl-iter-procset iter)]
+  (let* ([procs (rl-iter-procset iter)]
          [index (rl-iter-procs-index procs)])
-    (index repr column-name)))
+    (index column-name)))
 
 ; phantom tuple, used when implementing basic-iter
 (struct rl-phantom-tuple ())
@@ -234,21 +230,15 @@
   (define (rl-basic-iter-rewind basic-iter)
     (let ([table (rl-basic-iter-table basic-iter)])
       (rl-basic-iter table (rl-phantom-tuple))))
-  (define (rl-basic-iter-name basic-iter)
-    (let ([table (rl-basic-iter-table basic-iter)])
-      (rl-table-name table)))
-  (define (rl-basic-iter-columns basic-iter)
-    (let ([table (rl-basic-iter-table basic-iter)])
-      (rl-table-columns table)))
-  (define (rl-basic-iter-indexable-check basic-iter column-name)
-    (let* ([table (rl-basic-iter-table basic-iter)]
-           [indexed-columns (rl-table-indexed-columns table)])
+  (define (rl-basic-iter-name) (rl-table-name table))
+  (define (rl-basic-iter-columns) (rl-table-columns table))
+  (define (rl-basic-iter-indexable-check column-name)
+    (let* ([indexed-columns (rl-table-indexed-columns table)])
       (if (null? indexed-columns)
           false
           (not (false? (index-of indexed-columns column-name))))))
-  (define (rl-basic-iter-index basic-iter column-name)
-    (let* ([table (rl-basic-iter-table basic-iter)]
-           [indexed-columns (rl-table-indexed-columns table)]
+  (define (rl-basic-iter-index column-name)
+    (let* ([indexed-columns (rl-table-indexed-columns table)]
            [index-maps (rl-table-index-maps table)]
            [subscript (index-of indexed-columns column-name)])
       (if (false? subscript)
@@ -270,8 +260,6 @@
   (define (rl-cartesian-iter-get cartesian-iter)
     (let ([base1 (rl-cartesian-iter-base1 cartesian-iter)]
           [base2 (rl-cartesian-iter-base2 cartesian-iter)])
-      ; (displayln (rl-iter-name base1))
-      ; (displayln (rl-iter-name base2))
       (append (rl-iter-get base1) (rl-iter-get base2))))
   (define (rl-cartesian-iter-next cartesian-iter)
     (define (rl-cartesian-next-post-check cartesian-iter)
@@ -294,14 +282,10 @@
           [base2 (rl-cartesian-iter-base2 cartesian-iter)])
       (rl-cartesian-iter (rl-iter-next (rl-iter-rewind base1))
                          (rl-iter-rewind base2))))
-  (define (rl-cartesian-iter-name cartesian-iter)
-    (let ([base1 (rl-cartesian-iter-base1 cartesian-iter)]
-          [base2 (rl-cartesian-iter-base2 cartesian-iter)])
-      (string-append "<" (rl-iter-name base1) " * " (rl-iter-name base2) ">")))
-  (define (rl-cartesian-iter-columns cartesian-iter)
-    (let ([base1 (rl-cartesian-iter-base1 cartesian-iter)]
-          [base2 (rl-cartesian-iter-base2 cartesian-iter)])
-      (append (rl-iter-columns base1) (rl-iter-columns base2))))
+  (define (rl-cartesian-iter-name)
+    (string-append "<" (rl-iter-name base1) " * " (rl-iter-name base2) ">"))
+  (define (rl-cartesian-iter-columns)
+      (append (rl-iter-columns base1) (rl-iter-columns base2)))
   (rl-iter #|repr|#  (rl-cartesian-iter (rl-iter-next base1) base2)
            #|procs|# (rl-iter-procs rl-cartesian-iter-get
                                     rl-cartesian-iter-next
@@ -333,15 +317,13 @@
     (define (rl-projection-iter-rewind projection-iter)
       (let ([base (rl-projection-iter-base projection-iter)])
         (rl-projection-iter (rl-iter-rewind base))))
-    (define (rl-projection-iter-name projection-iter)
-      (let ([base (rl-projection-iter-base projection-iter)])
-        (string-append "PI<" 
-                       (rl-iter-name base)
-                       "; "
-                       (~a (rl-projection-iter-columns projection-iter)) 
-                       ">")))
-    (define (rl-projection-iter-columns projection-iter)
-      column-names)
+    (define (rl-projection-iter-name)
+      (string-append "PI<" 
+                     (rl-iter-name base)
+                     "; "
+                     (~a column-names)
+                     ">"))
+    (define (rl-projection-iter-columns) column-names)
     (rl-iter #|repr|#  (rl-projection-iter base)
              #|procs|# (rl-iter-procs rl-projection-iter-get
                                       rl-projection-iter-next
@@ -386,14 +368,13 @@
       (rl-iter-test (rl-select-iter-base select-iter)))
     (define (rl-select-iter-rewind select-iter)
       (rl-select-iter (rl-iter-rewind (rl-select-iter-base select-iter))))
-    (define (rl-select-iter-name select-iter)
+    (define (rl-select-iter-name)
       (string-append "SIGMA<"
-                     (rl-iter-name (rl-select-iter-base select-iter))
+                     (rl-iter-name base)
                      ";"
                      (~a (raw-expr->string raw-condition))
                      ">"))
-    (define (rl-select-iter-columns select-iter)
-      (rl-iter-columns (rl-select-iter-base select-iter)))
+    (define (rl-select-iter-columns) (rl-iter-columns base))
     (rl-iter #|repr|#  (rl-select-iter base)
              #|procs|# (rl-iter-procs rl-select-iter-get
                                       rl-select-iter-next
@@ -433,18 +414,14 @@
     (define (rl-equiv-join-iter-rewind equiv-join-iter)
       (let ([iter1 (rl-equiv-join-iter-iter1 equiv-join-iter)])
         (rl-equiv-join-iter (rl-iter-rewind iter1))))
-    (define (rl-equiv-join-iter-name equiv-join-iter)
-      (unused equiv-join-iter)
-      (string-append "<" (rl-iter-name iter1) " |x| " (rl-iter-name iter2) ">"))
-    (define (rl-equiv-join-iter-columns equiv-join-iter)
-      (unused equiv-join-iter)
+    (define (rl-equiv-join-iter-name)
+      (string-append "<" (rl-iter-name iter1) " |X|" (rl-iter-name iter2) ">"))
+    (define (rl-equiv-join-iter-columns)
       (append (rl-iter-columns iter1) (rl-iter-columns iter2)))
-    (define (rl-equiv-join-iter-indexable-check equiv-join-iter column-name)
-      (let ([iter1 (rl-equiv-join-iter-iter1 equiv-join-iter)])
-        (rl-iter-indexable? iter1 column-name)))
-    (define (rl-equiv-join-iter-index equiv-join-iter column-name)
-      (let* ([iter1 (rl-equiv-join-iter-iter1)]
-             [iter1-index (rl-iter-index iter1)])
+    (define (rl-equiv-join-iter-indexable-check column-name)
+        (rl-iter-indexable? iter1 column-name))
+    (define (rl-equiv-join-iter-index column-name)
+      (let ([iter1-index (rl-iter-index iter1)])
         (lambda (column-value)
           (and-let* ([iter1-tuple (iter1-index column-value)]
                      [iter1-key (iter1-column-selector iter1-tuple)]
