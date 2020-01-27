@@ -415,7 +415,7 @@
       (let ([iter1 (rl-equiv-join-iter-iter1 equiv-join-iter)])
         (rl-equiv-join-iter (rl-iter-rewind iter1))))
     (define (rl-equiv-join-iter-name)
-      (string-append "<" (rl-iter-name iter1) " |X|" (rl-iter-name iter2) ">"))
+      (string-append "<" (rl-iter-name iter1) " |X| " (rl-iter-name iter2) ">"))
     (define (rl-equiv-join-iter-columns)
       (append (rl-iter-columns iter1) (rl-iter-columns iter2)))
     (define (rl-equiv-join-iter-indexable-check column-name)
