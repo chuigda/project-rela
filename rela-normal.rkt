@@ -10,6 +10,9 @@
 ; unimplemented stuffs and todos
 (define (unimplemented) (error "unimplemented"))
 
+; distance function
+(define (distance x y) (abs (- x y)))
+
 ; for marking unused parameters
 (define (unused x . xs) (void))
 
@@ -48,8 +51,6 @@
         false
         (cdr (vector-ref svec subscript)))))
 
-(define (distance x y) (abs (- x y)))
-
 (define (svec-lower-bound svec key)
   (define (lower-bound-int idx1 idx2)
     (let ([idx-distance (distance idx1 idx2)])
@@ -66,6 +67,9 @@
     (cond [(false? lower-bound-index) false]
           [(= lower-bound-index svec-length) false]
           [else lower-bound-index])))
+
+(define (svec-index-ref svec index)
+  (vector-ref svec index))
 
 ; testcase for sorted vectors
 (define svec-1
@@ -389,12 +393,12 @@
 
 (define (rl-build-equiv-join-iter iter1 iter2 iter1-column iter2-column)
   (let ([iter1-column-selector (rl-build-column-selector (rl-iter-columns iter1) iter1-column)]
-        [iter2-indexer (rl-iter-index iter2 iter2-column)])
+        [iter2-index (rl-iter-index iter2 iter2-column)])
     (define (rl-equiv-join-iter-get equiv-join-iter)
       (let* ([iter1 (rl-equiv-join-iter-iter1 equiv-join-iter)]
              [iter1-tuple (rl-iter-get iter1)]
              [iter1-key (iter1-column-selector iter1-tuple)]
-             [iter2-tuple (iter2-indexer iter1-key)])
+             [iter2-tuple (iter2-index iter1-key)])
           (append iter1-tuple iter2-tuple)))
     (define (rl-equiv-join-iter-next equiv-join-iter)
       (define (rl-equiv-join-iter-next-int prim-iter)
@@ -402,7 +406,7 @@
             prim-iter
             (let* ([iter1-tuple (rl-iter-get prim-iter)]
                    [iter1-key (iter1-column-selector iter1-tuple)]
-                   [iter2-tuple (iter2-indexer iter1-key)])
+                   [iter2-tuple (iter2-index iter1-key)])
               (if (false? iter2-tuple)
                   (rl-equiv-join-iter-next-int (rl-iter-next prim-iter))
                   prim-iter))))
@@ -425,7 +429,7 @@
         (lambda (column-value)
           (and-let* ([iter1-tuple (iter1-index column-value)]
                      [iter1-key (iter1-column-selector iter1-tuple)]
-                     [iter2-tuple (iter2-indexer iter1-key)])
+                     [iter2-tuple (iter2-index iter1-key)])
              (append iter1-tuple iter2-tuple)))))
     (rl-iter #|repr|#  (rl-equiv-join-iter iter1)
              #|procs|# (rl-iter-procs rl-equiv-join-iter-get
@@ -440,7 +444,43 @@
 (struct rl-ranged-iter (base))
 
 (define (rl-build-ranged-iter base column lower-bound upper-bound)
-  (unimplemented))
+  (let* ([base-columns (rl-iter-columns base)]
+         [column-selector (rl-build-column-selector base-columns column)])
+    (define (rl-ranged-iter-get ranged-iter)
+      (let ([base (rl-ranged-iter-base ranged-iter)])
+        (rl-iter-get base)))
+    (define (rl-ranged-iter-next ranged-iter)
+      (define (rl-ranged-iter-next-int base-iter)
+        (cond [(rl-iter-test base-iter) base-iter]
+              [(and (not-null? lower-bound) (less? (rl-iter-get base-iter)))
+               (rl-ranged-iter-next-int (rl-iter-next base-iter))]
+              [(and (not-null? upper-bound) (greater? (rl-iter-get base-iter) upper-bound))
+               base-iter]
+              [else base-iter]))
+      (rl-ranged-iter (rl-ranged-iter-next-int (rl-ranged-iter-base ranged-iter))))
+    (define (rl-ranged-iter-test ranged-iter)
+      (let ([base (rl-ranged-iter-base ranged-iter)])
+        (cond [(rl-iter-test base) true]
+              [(greater? (rl-iter-get base) upper-bound) true]
+              [else false])))
+    (define (rl-ranged-iter-rewind ranged-iter)
+      (rl-ranged-iter (rl-iter-rewind (rl-ranged-iter-base ranged-iter))))
+    (define (rl-ranged-iter-name)
+      (string-append "RANGE<" (rl-iter-name base) "; "
+                     column "; "
+                     (~a lower-bound) "; "
+                     (~a upper-bound) ">"))
+    (define (rl-ranged-iter-columns)
+      (rl-iter-columns base))
+    (rl-iter #|repr|#  (rl-ranged-iter base)
+             #|procs|# (rl-iter-procs rl-ranged-iter-get
+                                      rl-ranged-iter-next
+                                      rl-ranged-iter-test
+                                      rl-ranged-iter-rewind
+                                      rl-ranged-iter-name
+                                      rl-ranged-iter-columns
+                                      null
+                                      null))))
 
 (define (rl-iter-traverse iter)
   (displayln (rl-iter-name iter))
@@ -527,4 +567,16 @@
    tools-table-iter "tno1" "tno"))
 
 (rl-iter-traverse players-tools-equiv-join-iter)
+
+(define students-table
+  (rl-build-table "students"
+                  '("name" "score")
+                  '(("dyj" 59)
+                    ("ctz" 80)
+                    ("lc" 70)
+                    ("ly" 62)
+                    ("lhz" 65)
+                    ("glc" 55))
+                  "score"))
+
 
