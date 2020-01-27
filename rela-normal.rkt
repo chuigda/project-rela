@@ -76,6 +76,8 @@
         false
         (cdr (vector-ref svec subscript)))))
 
+(define svec-ref vector-ref)
+
 (define (svec-lower-bound svec key)
   (define (lower-bound-int idx1 idx2)
     (let ([idx-distance (distance idx1 idx2)])
@@ -92,9 +94,6 @@
     (cond [(false? lower-bound-index) false]
           [(= lower-bound-index svec-length) false]
           [else lower-bound-index])))
-
-(define (svec-index-ref svec index)
-  (vector-ref svec index))
 
 ; testcase for sorted vectors
 (define svec-1
@@ -190,7 +189,8 @@
          (display-tuples (rl-table-tuples table))))
 
 ; interface of dynamic method dispatch
-(struct rl-iter-procs (get next test rewind name columns indexable-check index))
+(struct rl-iter-procs (get next test rewind name columns indexable-check
+                       index index-lower-bound index-ref))
 
 (struct rl-iter (repr procset))
 
@@ -235,6 +235,16 @@
          [index (rl-iter-procs-index procs)])
     (index column-name)))
 
+(define (rl-iter-index-lower-bound iter column-name)
+  (let* ([procs (rl-iter-procset iter)]
+         [index-lower-bound (rl-iter-procs-index-lower-bound procs)])
+    (index-lower-bound column-name)))
+
+(define (rl-iter-index-ref iter column-name)
+  (let* ([procs (rl-iter-procset iter)]
+         [index-ref (rl-iter-procs-index-ref procs)])
+    (index-ref column-name)))
+
 ; phantom tuple, used when implementing basic-iter
 (struct rl-phantom-tuple ())
 
@@ -270,8 +280,22 @@
            [index-maps (rl-table-index-maps table)]
            [subscript (index-of indexed-columns column-name)])
       (if (false? subscript)
-          (error "column does not exist")
+          (error "column index does not exist")
           (lambda (column-value) (svec-get (list-ref index-maps subscript) column-value)))))
+  (define (rl-basic-iter-index-lower-bound column-name)
+    (let* ([indexed-columns (rl-table-indexed-columns table)]
+           [index-maps (rl-table-index-maps table)]
+           [subscript (index-of indexed-columns column-name)])
+      (if (false? subscript)
+          (error "column index does not exist")
+          (lambda (column-value) (svec-lower-bound (list-ref index-maps subscript) column-value)))))
+  (define (rl-basic-iter-index-ref column-name)
+    (let* ([indexed-columns (rl-table-indexed-columns table)]
+           [index-maps (rl-table-index-maps table)]
+           [subscript (index-of indexed-columns column-name)])
+      (if (false? subscript)
+          (error "column index does not exist")
+          (lambda (idx) (svec-ref (list-ref index-maps subscript) idx)))))
   (rl-iter #|repr|#  (rl-basic-iter table (rl-phantom-tuple))
            #|procs|# (rl-iter-procs rl-basic-iter-get
                                     rl-basic-iter-next
@@ -280,7 +304,9 @@
                                     rl-basic-iter-name
                                     rl-basic-iter-columns
                                     rl-basic-iter-indexable-check
-                                    rl-basic-iter-index)))
+                                    rl-basic-iter-index
+                                    rl-basic-iter-index-lower-bound
+                                    rl-basic-iter-index-ref)))
 
 (struct rl-cartesian-iter (base1 base2))
 
@@ -322,6 +348,8 @@
                                     rl-cartesian-iter-name
                                     rl-cartesian-iter-columns
                                     null
+                                    null
+                                    null
                                     null)))
 
 (struct rl-projection-iter (base))
@@ -359,6 +387,8 @@
                                       rl-projection-iter-rewind
                                       rl-projection-iter-name
                                       rl-projection-iter-columns
+                                      null
+                                      null
                                       null
                                       null))))
 
@@ -411,6 +441,8 @@
                                       rl-select-iter-name
                                       rl-select-iter-columns
                                       null
+                                      null
+                                      null
                                       null))))
 
 (struct rl-equiv-join-iter (iter1))
@@ -454,6 +486,16 @@
           (and-let* ([iter1-tuple (iter1-index column-value)]
                      [iter1-key (iter1-column-selector iter1-tuple)]
                      [iter2-tuple (iter2-index iter1-key)])
+                    (append iter1-tuple iter2-tuple)))))
+    (define (rl-equiv-join-iter-index-lower-bound column-name)
+      (let ([iter1-index-lower-bound (rl-iter-index-lower-bound iter1)])
+        (lambda (column-name) (iter1-index-lower-bound column-name))))
+    (define (rl-equiv-join-iter-index-ref column-name)
+      (let ([iter1-index-ref (rl-iter-index-ref iter1)])
+        (lambda (idx)
+          (and-let* ([iter1-tuple (iter1-index-ref idx)]
+                     [iter1-key (iter1-column-selector iter1-tuple)]
+                     [iter2-tuple (iter2-index)])
              (append iter1-tuple iter2-tuple)))))
     (rl-iter #|repr|#  (rl-equiv-join-iter iter1)
              #|procs|# (rl-iter-procs rl-equiv-join-iter-get
@@ -463,7 +505,9 @@
                                       rl-equiv-join-iter-name
                                       rl-equiv-join-iter-columns
                                       rl-equiv-join-iter-indexable-check
-                                      rl-equiv-join-iter-index))))
+                                      rl-equiv-join-iter-index
+                                      rl-equiv-join-iter-index-lower-bound
+                                      rl-equiv-join-iter-index-ref))))
 
 (struct rl-regular-ranged-iter (base))
 
@@ -509,6 +553,8 @@
                                       rl-ranged-iter-rewind
                                       rl-ranged-iter-name
                                       rl-ranged-iter-columns
+                                      null
+                                      null
                                       null
                                       null))))
 
