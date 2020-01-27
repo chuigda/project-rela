@@ -64,7 +64,7 @@
   (vector-sort (list->vector list-of-pairs)
                (lambda (p1 p2) (less? (car p1) (car p2)))))
 
-(define (svec-ref svec key)
+(define (svec-get svec key)
   (define (cmp x1 x2)
     (cond [(pair? x1) (cmp (car x1) x2)]
           [(pair? x2) (cmp x1 (car x2))]
@@ -104,11 +104,11 @@
           (cons 3 "GZS")
           (cons 5 "WXB"))))
 
-(check-equal? (svec-ref svec-1 2) "CKX")
-(check-equal? (svec-ref svec-1 3) "GZS")
-(check-equal? (svec-ref svec-1 5) "WXB")
-(check-equal? (svec-ref svec-1 1) "CTZ")
-(check-false (svec-ref svec-1 4))
+(check-equal? (svec-get svec-1 2) "CKX")
+(check-equal? (svec-get svec-1 3) "GZS")
+(check-equal? (svec-get svec-1 5) "WXB")
+(check-equal? (svec-get svec-1 1) "CTZ")
+(check-false (svec-get svec-1 4))
 
 (check-equal? (svec-lower-bound svec-1 4) 3)
 (check-equal? (svec-lower-bound svec-1 5) 3)
@@ -117,7 +117,6 @@
 (check-equal? (svec-lower-bound svec-1 1) 0)
 (check-equal? (svec-lower-bound svec-1 0) 0)
 (check-equal? (svec-lower-bound svec-1 -1) 0)
-(check-false (svec-ref svec-1 6))
 
 (define svec-2
   (list->svec
@@ -272,7 +271,7 @@
            [subscript (index-of indexed-columns column-name)])
       (if (false? subscript)
           (error "column does not exist")
-          (lambda (column-value) (svec-ref (list-ref index-maps subscript) column-value)))))
+          (lambda (column-value) (svec-get (list-ref index-maps subscript) column-value)))))
   (rl-iter #|repr|#  (rl-basic-iter table (rl-phantom-tuple))
            #|procs|# (rl-iter-procs rl-basic-iter-get
                                     rl-basic-iter-next
