@@ -76,7 +76,10 @@
         false
         (cdr (vector-ref svec subscript)))))
 
-(define svec-ref vector-ref)
+(define (svec-ref svec idx)
+  (if (>= idx (vector-length svec))
+      #f
+      (vector-ref svec idx)))
 
 (define (svec-lower-bound svec key)
   (define (lower-bound-int idx1 idx2)
@@ -558,6 +561,51 @@
                                       null
                                       null))))
 
+(define (rl-build-indexed-ranged-iter base column lower-bound upper-bound)
+  (let* ([index-lower-bound (rl-iter-index-lower-bound base column)]
+         [index-ref (rl-iter-index-ref base column)]
+         [first-subscript (if (null? lower-bound)
+                              0
+                              (index-lower-bound lower-bound))])
+    (define (rl-ranged-iter-get ranged-iter)
+      (let ([subscript (rl-indexed-ranged-iter-subscript ranged-iter)])
+        (cdr (index-ref subscript))))
+    (define (rl-ranged-iter-next ranged-iter)
+      (define (rl-ranged-iter-next-int subscript)
+        (and-let* ([kvpair (index-ref subscript)]
+                   [key (car kvpair)])
+          (cond [(and (not-null? upper-bound) (greater? key upper-bound)) false]
+                [else subscript])))
+      (let ([subscript (rl-indexed-ranged-iter-subscript ranged-iter)])
+        (rl-indexed-ranged-iter
+         (cond [(null? subscript) first-subscript]
+               [(false? subscript) (error "iterator already at end")]
+               [else (rl-ranged-iter-next-int (+ subscript 1))]))))
+    (define (rl-ranged-iter-test ranged-iter)
+      (let ([subscript (rl-indexed-ranged-iter-subscript ranged-iter)])
+        (false? subscript)))
+    (define (rl-ranged-iter-rewind ranged-iter)
+      (unused ranged-iter)
+      (rl-indexed-ranged-iter null))
+    (define (rl-ranged-iter-name)
+      (string-append "INDEXED-RANGE<" (rl-iter-name base) "; "
+                     column "; "
+                     (~a lower-bound) "; "
+                     (~a upper-bound) ">"))
+    (define (rl-ranged-iter-columns)
+      (rl-iter-columns base))
+    (rl-iter #|repr|#  (rl-indexed-ranged-iter null)
+             #|procs|# (rl-iter-procs rl-ranged-iter-get
+                                      rl-ranged-iter-next
+                                      rl-ranged-iter-test
+                                      rl-ranged-iter-rewind
+                                      rl-ranged-iter-name
+                                      rl-ranged-iter-columns
+                                      null
+                                      null
+                                      null
+                                      null))))
+
 (define (rl-iter-traverse iter)
   (displayln (rl-iter-name iter))
   (displayln (~a (rl-iter-columns iter)))
@@ -657,9 +705,29 @@
 (define students-table-iter
   (rl-build-basic-iter students-table))
 
-(define students-table-ranged-iter
+(define students-table-ranged-iter1
   (rl-build-regular-ranged-iter students-table-iter "score" 60 79))
+
+(define students-table-ranged-iter2
+  (rl-build-indexed-ranged-iter students-table-iter "score" 60 79))
+
+(define students-table-ranged-iter3
+  (rl-build-regular-ranged-iter students-table-iter "score" null 79))
+
+(define students-table-ranged-iter4
+  (rl-build-indexed-ranged-iter students-table-iter "score" null 79))
+
+(define students-table-ranged-iter5
+  (rl-build-regular-ranged-iter students-table-iter "score" 60 null))
+
+(define students-table-ranged-iter6
+  (rl-build-indexed-ranged-iter students-table-iter "score" 60 null))
 
 (rl-iter-traverse students-table-iter)
 
-(rl-iter-traverse students-table-ranged-iter)
+(rl-iter-traverse students-table-ranged-iter1)
+(rl-iter-traverse students-table-ranged-iter2)
+(rl-iter-traverse students-table-ranged-iter3)
+(rl-iter-traverse students-table-ranged-iter4)
+(rl-iter-traverse students-table-ranged-iter5)
+(rl-iter-traverse students-table-ranged-iter6)
