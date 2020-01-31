@@ -616,6 +616,13 @@
                (rl-iter-traverse-int (rl-iter-next iter)))))
   (rl-iter-traverse-int (rl-iter-next iter)))
 
+(struct rl-query-node (sub-nodes selections))
+
+(struct rl-query (root-node projection))
+
+(define (rl-preprocess fields from-tables where-clauses)
+  (unimplemented))
+
 (define players-table
   (rl-build-table "players-table"
                   '("pno" "pname" "pteam")
