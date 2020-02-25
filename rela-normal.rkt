@@ -50,15 +50,6 @@
 
 (define (greater-or-eq? x y) (or (greater? x y) (equal? x y)))
 
-
-(check-false (less-or-eq? 13 12))
-(check-true (less-or-eq? 12 12))
-(check-true (less-or-eq? 11 12))
-
-(check-true (greater-or-eq? 13 12))
-(check-true (greater-or-eq? 12 12))
-(check-false (greater-or-eq? 11 12))
-
 ; ordered indexing mechanism implemented with sorted vectors
 (define (list->svec list-of-pairs)
   (vector-sort (list->vector list-of-pairs)
@@ -149,181 +140,119 @@
          (display-tuples (rl-table-tuples table))))
 
 ; interface of dynamic method dispatch
-(struct rl-iter-procs (get next test rewind name columns indexable-check index))
+; 'get, 'next, 'test, 'rewind, 'name, 'columns, 'indexable-check, 'index
 
-(struct rl-iter (repr procset))
-
-; generic methods
-(define (rl-iter-get iter)
-  (let ([repr (rl-iter-repr iter)]
-        [get-proc (rl-iter-procs-get (rl-iter-procset iter))])
-    (get-proc repr)))
-
-(define (rl-iter-next iter)
-  (let* ([repr (rl-iter-repr iter)]
-         [procs (rl-iter-procset iter)]
-         [next-proc (rl-iter-procs-next procs)])
-    (rl-iter (next-proc repr) procs)))
-
-(define (rl-iter-test iter)
-  (let ([repr (rl-iter-repr iter)]
-        [test-proc (rl-iter-procs-test (rl-iter-procset iter))])
-    (test-proc repr)))
-
-(define (rl-iter-rewind iter)
-  (let* ([repr (rl-iter-repr iter)]
-         [procs (rl-iter-procset iter)]
-         [rewind-proc (rl-iter-procs-rewind procs)])
-    (rl-iter (rewind-proc repr) procs)))
-
-(define (rl-iter-name iter)
-  (let ([name-proc (rl-iter-procs-name (rl-iter-procset iter))])
-    (name-proc)))
-
-(define (rl-iter-columns iter)
-  (let ([columns-proc (rl-iter-procs-columns (rl-iter-procset iter))])
-    (columns-proc)))
-
-(define (rl-iter-indexable? iter indexed-field)
-  (let* ([iter-indexable-check (rl-iter-procs-indexable-check iter)])
-    (and (not-null? iter-indexable-check)
-         (iter-indexable-check indexed-field))))
-
-(define (rl-iter-index iter column-name)
-  (let* ([procs (rl-iter-procset iter)]
-         [index (rl-iter-procs-index procs)])
-    (index column-name)))
+; shorthand methods
+(define (rl-iter-get iter) (iter 'get))
+(define (rl-iter-next iter) (iter 'next))
+(define (rl-iter-test iter) (iter 'test))
+(define (rl-iter-rewind iter) (iter 'rewind))
+(define (rl-iter-name iter) (iter 'name))
+(define (rl-iter-columns iter) (iter 'columns))
+(define (rl-iter-indexable? iter column-name) (iter 'indexable-check column-name))
+(define (rl-iter-index iter column-name) (iter 'index column-name))
 
 ; phantom tuple, used when implementing basic-iter
 (struct rl-phantom-tuple ())
 
-(struct rl-basic-iter (table cur-tuples))
-
 (define (rl-build-basic-iter table)
-  (define (rl-basic-iter-get basic-iter)
-    (let ([cur-tuples (rl-basic-iter-cur-tuples basic-iter)])
+  (define (rl-build-basic-iter-int cur-tuples)
+    (define (rl-basic-iter-get)
       (cond [(rl-phantom-tuple? cur-tuples) (error "iterator not ready")]
             [(null? cur-tuples) (error "iterator at end")]
-            [else (car cur-tuples)])))
-  (define (rl-basic-iter-next basic-iter)
-    (let ([table (rl-basic-iter-table basic-iter)]
-          [cur-tuples (rl-basic-iter-cur-tuples basic-iter)])
-      (cond [(null? cur-tuples) (error "iterator already at end")]
-            [(rl-phantom-tuple? cur-tuples) (rl-basic-iter table (rl-table-tuples table))]
-            [(rl-basic-iter table (cdr cur-tuples))])))
-  (define (rl-basic-iter-test basic-iter)
-    (let ([cur-tuples (rl-basic-iter-cur-tuples basic-iter)])
-      (null? cur-tuples)))
-  (define (rl-basic-iter-rewind basic-iter)
-    (let ([table (rl-basic-iter-table basic-iter)])
-      (rl-basic-iter table (rl-phantom-tuple))))
-  (define (rl-basic-iter-name) (rl-table-name table))
-  (define (rl-basic-iter-columns) (rl-table-columns table))
-  (define (rl-basic-iter-indexable-check column-name)
-    (let* ([indexed-columns (rl-table-indexed-columns table)])
-      (if (null? indexed-columns)
-          false
-          (not (false? (index-of indexed-columns column-name))))))
-  (define (rl-basic-iter-index column-name)
-    (let* ([indexed-columns (rl-table-indexed-columns table)]
-           [index-maps (rl-table-index-maps table)]
-           [subscript (index-of indexed-columns column-name)])
-      (if (false? subscript)
-          (error "column index does not exist")
-          (lambda (column-value) (svec-get (list-ref index-maps subscript) column-value)))))
-  (rl-iter #|repr|#  (rl-basic-iter table (rl-phantom-tuple))
-           #|procs|# (rl-iter-procs rl-basic-iter-get
-                                    rl-basic-iter-next
-                                    rl-basic-iter-test
-                                    rl-basic-iter-rewind
-                                    rl-basic-iter-name
-                                    rl-basic-iter-columns
-                                    rl-basic-iter-indexable-check
-                                    rl-basic-iter-index)))
+            [else (car cur-tuples)]))
+    (define (rl-basic-iter-next)
+      (cond [(rl-phantom-tuple? cur-tuples) (rl-build-basic-iter-int (rl-table-tuples table))]
+            [(null? cur-tuples) (error "iterator already at end")]
+            [else (rl-build-basic-iter-int (cdr cur-tuples))]))
+    (define (rl-basic-iter-test) (null? cur-tuples))
+    (define (rl-basic-iter-rewind) (rl-build-basic-iter-int (rl-phantom-tuple)))
+    (define (rl-basic-iter-name) (rl-table-name table))
+    (define (rl-basic-iter-columns) (rl-table-columns table))
+    (define (rl-basic-iter-indexable-check column-name)
+      (let ([indexed-columns (rl-table-indexed-columns table)])
+        (if (null? indexed-columns)
+            false
+            (not (false? (index-of indexed-columns column-name))))))
+    (define (rl-basic-iter-index column-name)
+      (let* ([indexed-columns (rl-table-indexed-columns table)]
+             [index-maps (rl-table-index-maps table)]
+             [subscript (index-of indexed-columns column-name)])
+        (if (false? subscript)
+            (error "index does not exist")
+            (lambda (column-value) (svec-get (list-ref index-maps subscript) column-value)))))
+    (lambda (message . params)
+      (case message ['get (rl-basic-iter-get)]
+                    ['next (rl-basic-iter-next)]
+                    ['test (rl-basic-iter-test)]
+                    ['rewind (rl-basic-iter-rewind)]
+                    ['name (rl-basic-iter-name)]
+                    ['columns (rl-basic-iter-columns)]
+                    ['indexable-check (rl-basic-iter-indexable-check (car params))]
+                    ['index (rl-basic-iter-index (car params))])))
+  (rl-build-basic-iter-int (rl-phantom-tuple)))
 
-(struct rl-cartesian-iter (base1 base2))
-
-(define (rl-build-cartesian-iter base1 base2)
-  (define (rl-cartesian-iter-get cartesian-iter)
-    (let ([base1 (rl-cartesian-iter-base1 cartesian-iter)]
-          [base2 (rl-cartesian-iter-base2 cartesian-iter)])
-      (append (rl-iter-get base1) (rl-iter-get base2))))
-  (define (rl-cartesian-iter-next cartesian-iter)
-    (define (rl-cartesian-next-post-check cartesian-iter)
-      (let ([base1 (rl-cartesian-iter-base1 cartesian-iter)]
-            [base2 (rl-cartesian-iter-base2 cartesian-iter)])
-        (if (rl-iter-test base2)
-            (rl-cartesian-iter-next cartesian-iter)
-          cartesian-iter)))
-    (let ([base1 (rl-cartesian-iter-base1 cartesian-iter)]
-          [base2 (rl-cartesian-iter-base2 cartesian-iter)])
+(define (rl-build-cartesian-iter base1-origin base2-origin)
+  (define (rl-build-cartesian-iter-int base1 base2)
+    (define (rl-cartesian-iter-get) (append (rl-iter-get base1) (rl-iter-get base2)))
+    (define (rl-cartesian-next-post-check)
+      (if (rl-iter-test base2)
+          (rl-cartesian-iter-next)
+          (rl-build-cartesian-iter-int base1 base2)))
+    (define (rl-cartesian-iter-next)
       (cond [(rl-iter-test base1) (error "cartesian iterator at end")]
-            [(rl-iter-test base2) (rl-cartesian-iter (rl-iter-next base1)
-                                                     (rl-iter-next (rl-iter-rewind base2)))]
-            [else (rl-cartesian-next-post-check (rl-cartesian-iter base1 (rl-iter-next base2)))])))
-  (define (rl-cartesian-iter-test cartesian-iter)
-    (let ([base1 (rl-cartesian-iter-base1 cartesian-iter)])
-      (rl-iter-test base1)))
-  (define (rl-cartesian-iter-rewind cartesian-iter)
-    (let ([base1 (rl-cartesian-iter-base1 cartesian-iter)]
-          [base2 (rl-cartesian-iter-base2 cartesian-iter)])
-      (rl-cartesian-iter (rl-iter-next (rl-iter-rewind base1))
-                         (rl-iter-rewind base2))))
-  (define (rl-cartesian-iter-name)
-    (string-append "<" (rl-iter-name base1) " * " (rl-iter-name base2) ">"))
-  (define (rl-cartesian-iter-columns)
-      (append (rl-iter-columns base1) (rl-iter-columns base2)))
-  (rl-iter #|repr|#  (rl-cartesian-iter (rl-iter-next base1) base2)
-           #|procs|# (rl-iter-procs rl-cartesian-iter-get
-                                    rl-cartesian-iter-next
-                                    rl-cartesian-iter-test
-                                    rl-cartesian-iter-rewind
-                                    rl-cartesian-iter-name
-                                    rl-cartesian-iter-columns
-                                    null
-                                    null)))
+            [(rl-iter-test base2) (rl-build-cartesian-iter-int (rl-iter-next base1)
+                                                               (rl-iter-next (rl-iter-rewind base2)))]
+            [else ((rl-build-cartesian-iter-int base1 (rl-iter-next base2)) 'post-check)]))
+    (define (rl-cartesian-iter-test) (rl-iter-test base1))
+    (define (rl-cartesian-iter-rewind) (rl-build-cartesian-iter-int base1-origin base2-origin))
+    (define (rl-cartesian-iter-name) 
+      (string-append "<" (rl-iter-name base1-origin) " * " (rl-iter-name base2-origin) ">"))
+    (define (rl-cartesian-iter-columns)
+      (append (rl-iter-columns base1-origin) (rl-iter-columns base2-origin)))
+    (lambda (message . params)
+      (case message ['get (rl-cartesian-iter-get)]
+                    ['next (rl-cartesian-iter-next)]
+                    ['test (rl-cartesian-iter-test)]
+                    ['rewind (rl-cartesian-iter-rewind)]
+                    ['name (rl-cartesian-iter-name)]
+                    ['columns (rl-cartesian-iter-columns)]
+                    ['post-check (rl-cartesian-next-post-check)])))
+  (rl-build-cartesian-iter-int base1-origin base2-origin))
 
-(struct rl-projection-iter (base))
-
-(define (rl-build-projection-iter base column-names)
+(define (rl-build-projection-iter base-origin column-names)
   (define (rl-build-all-column-selectors table-columns column-names)
     (map (lambda (column-name) (rl-build-column-selector table-columns column-name)) 
          column-names))
-  (let* ([base-columns (rl-iter-columns base)]
+  (let* ([base-columns (rl-iter-columns base-origin)]
          [all-column-selectors (rl-build-all-column-selectors base-columns column-names)])
-    (define (rl-projection-iter-get projection-iter)
-      (let ([cur-tuple (rl-iter-get (rl-projection-iter-base projection-iter))])
-        (map (lambda (f) (f cur-tuple))
-             all-column-selectors)))
-    (define (rl-projection-iter-next projection-iter)
-      (let ([base (rl-projection-iter-base projection-iter)])
-        (rl-projection-iter (rl-iter-next base))))
-    (define (rl-projection-iter-test projection-iter)
-      (let ([base (rl-projection-iter-base projection-iter)])
-        (rl-iter-test base)))
-    (define (rl-projection-iter-rewind projection-iter)
-      (let ([base (rl-projection-iter-base projection-iter)])
-        (rl-projection-iter (rl-iter-rewind base))))
-    (define (rl-projection-iter-name)
-      (string-append "PI<" 
-                     (rl-iter-name base)
-                     "; "
-                     (~a column-names)
-                     ">"))
-    (define (rl-projection-iter-columns) column-names)
-    (rl-iter #|repr|#  (rl-projection-iter base)
-             #|procs|# (rl-iter-procs rl-projection-iter-get
-                                      rl-projection-iter-next
-                                      rl-projection-iter-test
-                                      rl-projection-iter-rewind
-                                      rl-projection-iter-name
-                                      rl-projection-iter-columns
-                                      null
-                                      null))))
+    (define (rl-build-projection-iter-int base)
+      (define (rl-projection-iter-get)
+        (let ([cur-tuple (rl-iter-get base)])
+          (map (lambda (f) (f cur-tuple)) all-column-selectors)))
+      (define (rl-projection-iter-next)
+        (rl-build-projection-iter-int (rl-iter-next base)))
+      (define (rl-projection-iter-test)
+        (rl-iter-test base))
+      (define (rl-projection-iter-rewind)
+        (rl-build-projection-iter-int base-origin))
+      (define (rl-projection-iter-name)
+        (string-append "PI<" 
+                       (rl-iter-name base-origin)
+                       "; "
+                       (~a column-names)
+                       ">"))
+      (define (rl-projection-iter-columns) column-names)
+      (lambda (message . params)
+        (case message ['get (rl-projection-iter-get)]
+                      ['next (rl-projection-iter-next)]
+                      ['test (rl-projection-iter-test)]
+                      ['rewind (rl-projection-iter-rewind)]
+                      ['name (rl-projection-iter-name)]
+                      ['columns (rl-projection-iter-columns)])))
+    (rl-build-projection-iter-int base-origin)))
 
-(struct rl-select-iter (base))
-
-(define (rl-build-select-iter base raw-condition)
+(define (rl-build-select-iter base-origin raw-condition)
   (define (raw-expr->string raw-expr)
     (define (rl-ref-replace raw-expr)
       (map-recur (lambda (x) (if (rl-ref? x) (rl-ref-name x) x))
@@ -341,95 +270,83 @@
       (map (lambda (item) (rl-compile-item item tuple)) the-list))
     (lambda (tuple) (eval (map (lambda (item) (rl-compile-item item tuple))
                                incomplete-expr))))
-  (let ([compiled-condition (rl-compile-expr (rl-iter-columns base) raw-condition)])
-    (define (rl-select-iter-get select-iter)
-      (let ([base (rl-select-iter-base select-iter)])
-        (rl-iter-get base)))
-    (define (rl-select-iter-next select-iter)
-      (define (rl-select-iter-next-intern base)
-        (cond [(rl-iter-test base) base]
-              [(compiled-condition (rl-iter-get base)) base]
-              [else (rl-select-iter-next-intern (rl-iter-next base))]))
-      (rl-select-iter (rl-select-iter-next-intern (rl-iter-next (rl-select-iter-base select-iter)))))
-    (define (rl-select-iter-test select-iter)
-      (rl-iter-test (rl-select-iter-base select-iter)))
-    (define (rl-select-iter-rewind select-iter)
-      (rl-select-iter (rl-iter-rewind (rl-select-iter-base select-iter))))
-    (define (rl-select-iter-name)
-      (string-append "SIGMA<"
-                     (rl-iter-name base)
-                     ";"
-                     (~a (raw-expr->string raw-condition))
-                     ">"))
-    (define (rl-select-iter-columns) (rl-iter-columns base))
-    (define (rl-select-iter-indexable-check column-name) (rl-iter-indexable? base column-name))
-    (define (rl-select-iter-index column-name)
-      (lambda (column-value)
-        (and-let* ([base-index (rl-iter-index base)]
-                   [tuple (base-index column-value)]
-                   [check-result (compiled-condition tuple)])
-          tuple)))
-    (rl-iter #|repr|#  (rl-select-iter base)
-             #|procs|# (rl-iter-procs rl-select-iter-get
-                                      rl-select-iter-next
-                                      rl-select-iter-test
-                                      rl-select-iter-rewind
-                                      rl-select-iter-name
-                                      rl-select-iter-columns
-                                      rl-select-iter-indexable-check
-                                      rl-select-iter-index))))
-
-(struct rl-equiv-join-iter (iter1))
-
-(define (rl-build-equiv-join-iter iter1 iter2 iter1-column iter2-column)
-  (let ([iter1-column-selector (rl-build-column-selector (rl-iter-columns iter1) iter1-column)]
-        [iter2-index (rl-iter-index iter2 iter2-column)])
-    (define (rl-equiv-join-iter-get equiv-join-iter)
-      (let* ([iter1 (rl-equiv-join-iter-iter1 equiv-join-iter)]
-             [iter1-tuple (rl-iter-get iter1)]
-             [iter1-key (iter1-column-selector iter1-tuple)]
-             [iter2-tuple (iter2-index iter1-key)])
-          (append iter1-tuple iter2-tuple)))
-    (define (rl-equiv-join-iter-next equiv-join-iter)
-      (define (rl-equiv-join-iter-next-int prim-iter)
-        (if (rl-iter-test prim-iter)
-            prim-iter
-            (let* ([iter1-tuple (rl-iter-get prim-iter)]
-                   [iter1-key (iter1-column-selector iter1-tuple)]
-                   [iter2-tuple (iter2-index iter1-key)])
-              (if (false? iter2-tuple)
-                  (rl-equiv-join-iter-next-int (rl-iter-next prim-iter))
-                  prim-iter))))
-      (let ([iter1 (rl-equiv-join-iter-iter1 equiv-join-iter)])
-        (rl-equiv-join-iter (rl-equiv-join-iter-next-int (rl-iter-next iter1)))))
-    (define (rl-equiv-join-iter-test equiv-join-iter)
-      (let ([iter1 (rl-equiv-join-iter-iter1 equiv-join-iter)])
-        (rl-iter-test iter1)))
-    (define (rl-equiv-join-iter-rewind equiv-join-iter)
-      (let ([iter1 (rl-equiv-join-iter-iter1 equiv-join-iter)])
-        (rl-equiv-join-iter (rl-iter-rewind iter1))))
-    (define (rl-equiv-join-iter-name)
-      (string-append "<" (rl-iter-name iter1) " |X| " (rl-iter-name iter2) ">"))
-    (define (rl-equiv-join-iter-columns)
-      (append (rl-iter-columns iter1) (rl-iter-columns iter2)))
-    (define (rl-equiv-join-iter-indexable-check column-name)
-        (rl-iter-indexable? iter1 column-name))
-    (define (rl-equiv-join-iter-index column-name)
-      (let ([iter1-index (rl-iter-index iter1)])
+  (let ([compiled-condition (rl-compile-expr (rl-iter-columns base-origin) raw-condition)])
+    (define (rl-build-select-iter-int base)
+      (define (rl-select-iter-get) (rl-iter-get base))
+      (define (rl-select-iter-next)
+        (define (rl-select-iter-next-intern base)
+          (cond [(rl-iter-test base) base]
+                [(compiled-condition (rl-iter-get base)) base]
+                [else (rl-select-iter-next-intern (rl-iter-next base))]))
+        (rl-build-select-iter-int (rl-select-iter-next-intern (rl-iter-next base))))
+      (define (rl-select-iter-test) (rl-iter-test base))
+      (define (rl-select-iter-rewind) (rl-build-select-iter-int (rl-iter-rewind base)))
+      (define (rl-select-iter-name)
+        (string-append "SIGMA<"
+                       (rl-iter-name base-origin)
+                       ";"
+                       (~a (raw-expr->string raw-condition))
+                       ">"))
+      (define (rl-select-iter-columns) (rl-iter-columns base-origin))
+      (define (rl-select-iter-indexable-check column-name) (rl-iter-indexable? base column-name))
+      (define (rl-select-iter-index column-name)
         (lambda (column-value)
-          (and-let* ([iter1-tuple (iter1-index column-value)]
+          (and-let* ([base-index (rl-iter-index base)]
+                     [tuple (base-index column-value)]
+                     [check-result (compiled-condition tuple)])
+            tuple)))
+      (lambda (message . params)
+        (case message ['get (rl-select-iter-get)]
+                      ['next (rl-select-iter-next)]
+                      ['test (rl-select-iter-test)]
+                      ['rewind (rl-select-iter-rewind)]
+                      ['name (rl-select-iter-name)]
+                      ['columns (rl-select-iter-columns)]
+                      ['indexable-check (rl-select-iter-indexable-check (car params))]
+                      ['index (rl-select-iter-index (car params))])))
+    (rl-build-select-iter-int base-origin)))
+
+(define (rl-build-equiv-join-iter iter1-origin iter2 iter1-column iter2-column)
+  (let ([iter1-column-selector (rl-build-column-selector (rl-iter-columns iter1-origin) iter1-column)]
+        [iter2-index (rl-iter-index iter2 iter2-column)])
+    (define (rl-build-equiv-join-iter-int iter1)
+      (define (rl-equiv-join-iter-get) (append (rl-iter-get iter1) (rl-iter-get iter2)))
+      (define (rl-equiv-join-iter-next)
+        (define (rl-equiv-join-iter-next-int prim-iter)
+          (if (rl-iter-test prim-iter)
+              prim-iter
+              (let* ([iter1-tuple (rl-iter-get prim-iter)]
                      [iter1-key (iter1-column-selector iter1-tuple)]
                      [iter2-tuple (iter2-index iter1-key)])
-                    (append iter1-tuple iter2-tuple)))))
-    (rl-iter #|repr|#  (rl-equiv-join-iter iter1)
-             #|procs|# (rl-iter-procs rl-equiv-join-iter-get
-                                      rl-equiv-join-iter-next
-                                      rl-equiv-join-iter-test
-                                      rl-equiv-join-iter-rewind
-                                      rl-equiv-join-iter-name
-                                      rl-equiv-join-iter-columns
-                                      rl-equiv-join-iter-indexable-check
-                                      rl-equiv-join-iter-index))))
+                (if (false? iter2-tuple)
+                    (rl-equiv-join-iter-next-int (rl-iter-next prim-iter))
+                    prim-iter))))
+        (rl-build-equiv-join-iter-int (rl-equiv-join-iter-next-int (rl-iter-next iter1))))
+      (define (rl-equiv-join-iter-test) (rl-iter-test iter1))
+      (define (rl-equiv-join-iter-rewind) (rl-build-equiv-join-iter-int (rl-iter-rewind iter1)))
+      (define (rl-equiv-join-iter-indexable-check column-name)
+        (rl-iter-indexable? iter1 column-name))
+      (define (rl-equiv-join-iter-name)
+        (string-append "<" (rl-iter-name iter1-origin) " |X| " (rl-iter-name iter2) ">"))
+      (define (rl-equiv-join-iter-columns) 
+        (append (rl-iter-columns iter1-origin) (rl-iter-columns iter2)))
+      (define (rl-equiv-join-iter-index column-name)
+        (lambda (column-value)
+          (and-let* ([iter1-index (rl-iter-index iter1 column-name)]
+                     [iter1-tuple (iter1-index column-value)]
+                     [iter1-key (iter1-column-selector iter1-tuple)]
+                     [iter2-tuple (iter2-index iter1-key)])
+            (append iter1-tuple iter2-tuple))))
+      (lambda (message . params)
+        (case message ['get (rl-equiv-join-iter-get)]
+                      ['next (rl-equiv-join-iter-next)]
+                      ['test (rl-equiv-join-iter-test)]
+                      ['rewind (rl-equiv-join-iter-rewind)]
+                      ['name (rl-equiv-join-iter-name)]
+                      ['columns (rl-equiv-join-iter-columns)]
+                      ['indexable-check (rl-equiv-join-iter-indexable-check (car params))]
+                      ['index (rl-equiv-join-iter-index (car params))])))
+    (rl-build-equiv-join-iter-int iter1-origin)))
 
 (define (rl-iter-traverse iter)
   (displayln (rl-iter-name iter))
