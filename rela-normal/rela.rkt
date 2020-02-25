@@ -2,98 +2,16 @@
 
 (require racket/format)
 (require racket/trace)
+(require errortrace)
+
 (require srfi/2)
 (require srfi/43)
-(require errortrace)
-(require rackunit)
 
-; unimplemented stuffs and todos
-(define (unimplemented) (error "unimplemented"))
-
-; distance function
-(define (distance x y) (abs (- x y)))
-
-; for marking unused parameters
-(define (unused x . xs) (void))
-
-; sometimes useful for debugging
-(define (id x) x)
-
-(define (display-n-ret x)
-  (display x)
-  x)
-
-(define (displayln-n-ret x)
-  (displayln x)
-  x)
-
-; procedure version of builtin special form `and`/`or`, does NOT have short circuit eval!
-(define (and-proc x y) (and x y))
-(define (or-proc x y) (or x y))
+(require "util.rkt")
+(require "svec.rkt")
 
 ; making eval work
 (current-namespace (make-base-namespace))
-
-; a shorthand
-(define (not-null? blah) (not (null? blah)))
-
-; hard-coded comparators, considered nasty, but out data types are limited to numbers and strings
-(define (less? x y)
-  (cond [(number? x) (< x y)]
-        [(string? x) (string<? x y)]))
-
-(define (greater? x y)
-  (cond [(number? x) (> x y)]
-        [(string? x) (string>? x y)]))
-
-(define (less-or-eq? x y) (or (less? x y) (equal? x y)))
-
-(define (greater-or-eq? x y) (or (greater? x y) (equal? x y)))
-
-; ordered indexing mechanism implemented with sorted vectors
-(define (list->svec list-of-pairs)
-  (vector-sort (list->vector list-of-pairs)
-               (lambda (p1 p2) (less? (car p1) (car p2)))))
-
-(define (svec-get svec key)
-  (define (cmp x1 x2)
-    (cond [(pair? x1) (cmp (car x1) x2)]
-          [(pair? x2) (cmp x1 (car x2))]
-          [(equal? x1 x2) 0]
-          [(less? x1 x2) -1]
-          [(greater? x1 x2) 1]))
-  (let ([subscript (vector-binary-search svec key cmp)])
-    (if (false? subscript)
-        false
-        (cdr (vector-ref svec subscript)))))
-
-(define (svec-ref svec idx)
-  (if (>= idx (vector-length svec))
-      #f
-      (vector-ref svec idx)))
-
-(define (svec-lower-bound svec key)
-  (define (lower-bound-int idx1 idx2)
-    (let ([idx-distance (distance idx1 idx2)])
-      (if (= idx-distance 0) idx1
-          (let* ([step (quotient (distance idx1 idx2) 2)]
-                 [mid (+ idx1 step)]
-                 [mid-kv (vector-ref svec mid)]
-                 [mid-key (car mid-kv)])
-            (cond [(greater? mid-key key) (lower-bound-int idx1 mid)]
-                  [(equal? mid-key key) mid]
-                  [(less? mid-key key) (lower-bound-int (+ mid 1) idx2)])))))
-  (let* ([svec-length (vector-length svec)]
-         [lower-bound-index (lower-bound-int 0 svec-length)])
-    (cond [(false? lower-bound-index) false]
-          [(= lower-bound-index svec-length) false]
-          [else lower-bound-index])))
-
-; we need this for tree structure traversing
-(define (map-recur proc x)
-  (define (map-one item)
-    (if (list? item) (map map-one item) (proc item)))
-  (map map-one x))
 
 ; basic table
 (struct rl-table (name columns tuples indexed-columns index-maps))
