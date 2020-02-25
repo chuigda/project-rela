@@ -10,6 +10,13 @@
 (require "util.rkt")
 (require "svec.rkt")
 
+(provide rl-build-table
+         rl-table-name
+         rl-table-columns
+         rl-table-tuples
+         rl-table-indexed-columns
+         rl-table-index-maps)
+
 ; making eval work
 (current-namespace (make-base-namespace))
 
@@ -40,8 +47,12 @@
                 indexed-columns
                 (map rl-build-one-index indexed-columns))))
 
+(provide rl-ref)
+
 ; for building name references in raw expressions
 (struct rl-ref (name))
+
+(provide display-table)
 
 (define (display-table table)
   (define (display-tuples tuples)
@@ -60,7 +71,16 @@
 ; interface of dynamic method dispatch
 ; 'get, 'next, 'test, 'rewind, 'name, 'columns, 'indexable-check, 'index
 
-; shorthand methods
+(provide rl-iter-get
+         rl-iter-next
+         rl-iter-test
+         rl-iter-rewind
+         rl-iter-name
+         rl-iter-columns
+         rl-iter-indexable?
+         rl-iter-index)
+
+; these are shorthand methods
 (define (rl-iter-get iter) (iter 'get))
 (define (rl-iter-next iter) (iter 'next))
 (define (rl-iter-test iter) (iter 'test))
@@ -72,6 +92,8 @@
 
 ; phantom tuple, used when implementing basic-iter
 (struct rl-phantom-tuple ())
+
+(provide rl-build-basic-iter)
 
 (define (rl-build-basic-iter table)
   (define (rl-build-basic-iter-int cur-tuples)
@@ -110,6 +132,8 @@
                     ['index (rl-basic-iter-index (car params))])))
   (rl-build-basic-iter-int (rl-phantom-tuple)))
 
+(provide rl-build-cartesian-iter)
+
 (define (rl-build-cartesian-iter base1-origin base2-origin)
   (define (rl-build-cartesian-iter-int base1 base2)
     (define (rl-cartesian-iter-get) (append (rl-iter-get base1) (rl-iter-get base2)))
@@ -136,7 +160,9 @@
                     ['name (rl-cartesian-iter-name)]
                     ['columns (rl-cartesian-iter-columns)]
                     ['post-check (rl-cartesian-next-post-check)])))
-  (rl-build-cartesian-iter-int base1-origin base2-origin))
+  (rl-build-cartesian-iter-int (rl-iter-next base1-origin) base2-origin))
+
+(provide rl-build-projection-iter)
 
 (define (rl-build-projection-iter base-origin column-names)
   (define (rl-build-all-column-selectors table-columns column-names)
@@ -170,6 +196,8 @@
                       ['columns (rl-projection-iter-columns)])))
     (rl-build-projection-iter-int base-origin)))
 
+(provide rl-build-select-iter)
+
 (define (rl-build-select-iter base-origin raw-condition)
   (define (raw-expr->string raw-expr)
     (define (rl-ref-replace raw-expr)
@@ -192,10 +220,10 @@
     (define (rl-build-select-iter-int base)
       (define (rl-select-iter-get) (rl-iter-get base))
       (define (rl-select-iter-next)
-        (define (rl-select-iter-next-intern base)
-          (cond [(rl-iter-test base) base]
-                [(compiled-condition (rl-iter-get base)) base]
-                [else (rl-select-iter-next-intern (rl-iter-next base))]))
+        (define (rl-select-iter-next-intern base1)
+          (cond [(rl-iter-test base1) base1]
+                [(compiled-condition (rl-iter-get base1)) base1]
+                [else (rl-select-iter-next-intern (rl-iter-next base1))]))
         (rl-build-select-iter-int (rl-select-iter-next-intern (rl-iter-next base))))
       (define (rl-select-iter-test) (rl-iter-test base))
       (define (rl-select-iter-rewind) (rl-build-select-iter-int (rl-iter-rewind base)))
@@ -224,11 +252,17 @@
                       ['index (rl-select-iter-index (car params))])))
     (rl-build-select-iter-int base-origin)))
 
+(provide rl-build-equiv-join-iter)
+
 (define (rl-build-equiv-join-iter iter1-origin iter2 iter1-column iter2-column)
   (let ([iter1-column-selector (rl-build-column-selector (rl-iter-columns iter1-origin) iter1-column)]
         [iter2-index (rl-iter-index iter2 iter2-column)])
     (define (rl-build-equiv-join-iter-int iter1)
-      (define (rl-equiv-join-iter-get) (append (rl-iter-get iter1) (rl-iter-get iter2)))
+      (define (rl-equiv-join-iter-get)
+        (let* ([iter1-tuple (rl-iter-get iter1)]
+               [iter1-key (iter1-column-selector iter1-tuple)]
+               [iter2-tuple (iter2-index iter1-key)])
+          (append iter1-tuple iter2-tuple)))
       (define (rl-equiv-join-iter-next)
         (define (rl-equiv-join-iter-next-int prim-iter)
           (if (rl-iter-test prim-iter)
@@ -265,6 +299,8 @@
                       ['indexable-check (rl-equiv-join-iter-indexable-check (car params))]
                       ['index (rl-equiv-join-iter-index (car params))])))
     (rl-build-equiv-join-iter-int iter1-origin)))
+
+(provide rl-iter-traverse)
 
 (define (rl-iter-traverse iter)
   (displayln (rl-iter-name iter))
