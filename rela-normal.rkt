@@ -98,49 +98,6 @@
           [(= lower-bound-index svec-length) false]
           [else lower-bound-index])))
 
-; testcase for sorted vectors
-(define svec-1
-  (list->svec
-    (list (cons 2 "CKX")
-          (cons 1 "CTZ")
-          (cons 3 "GZS")
-          (cons 5 "WXB"))))
-
-(check-equal? (svec-get svec-1 2) "CKX")
-(check-equal? (svec-get svec-1 3) "GZS")
-(check-equal? (svec-get svec-1 5) "WXB")
-(check-equal? (svec-get svec-1 1) "CTZ")
-(check-false (svec-get svec-1 4))
-
-(check-equal? (svec-lower-bound svec-1 4) 3)
-(check-equal? (svec-lower-bound svec-1 5) 3)
-(check-equal? (svec-lower-bound svec-1 3) 2)
-(check-equal? (svec-lower-bound svec-1 2) 1)
-(check-equal? (svec-lower-bound svec-1 1) 0)
-(check-equal? (svec-lower-bound svec-1 0) 0)
-(check-equal? (svec-lower-bound svec-1 -1) 0)
-
-(define svec-2
-  (list->svec
-    (list (cons 1 1)
-          (cons 2 2)
-          (cons 4 4)
-          (cons 5 5)
-          (cons 6 6)
-          (cons 9 9))))
-
-(check-equal? (svec-lower-bound svec-2 0) 0)
-(check-equal? (svec-lower-bound svec-2 1) 0)
-(check-equal? (svec-lower-bound svec-2 2) 1)
-(check-equal? (svec-lower-bound svec-2 3) 2)
-(check-equal? (svec-lower-bound svec-2 4) 2)
-(check-equal? (svec-lower-bound svec-2 5) 3)
-(check-equal? (svec-lower-bound svec-2 6) 4)
-(check-equal? (svec-lower-bound svec-2 7) 5)
-(check-equal? (svec-lower-bound svec-2 8) 5)
-(check-equal? (svec-lower-bound svec-2 9) 5)
-(check-false (svec-lower-bound svec-2 10))
-
 ; we need this for tree structure traversing
 (define (map-recur proc x)
   (define (map-one item)
@@ -192,8 +149,7 @@
          (display-tuples (rl-table-tuples table))))
 
 ; interface of dynamic method dispatch
-(struct rl-iter-procs (get next test rewind name columns indexable-check
-                       index index-lower-bound index-ref))
+(struct rl-iter-procs (get next test rewind name columns indexable-check index))
 
 (struct rl-iter (repr procset))
 
@@ -238,16 +194,6 @@
          [index (rl-iter-procs-index procs)])
     (index column-name)))
 
-(define (rl-iter-index-lower-bound iter column-name)
-  (let* ([procs (rl-iter-procset iter)]
-         [index-lower-bound (rl-iter-procs-index-lower-bound procs)])
-    (index-lower-bound column-name)))
-
-(define (rl-iter-index-ref iter column-name)
-  (let* ([procs (rl-iter-procset iter)]
-         [index-ref (rl-iter-procs-index-ref procs)])
-    (index-ref column-name)))
-
 ; phantom tuple, used when implementing basic-iter
 (struct rl-phantom-tuple ())
 
@@ -285,20 +231,6 @@
       (if (false? subscript)
           (error "column index does not exist")
           (lambda (column-value) (svec-get (list-ref index-maps subscript) column-value)))))
-  (define (rl-basic-iter-index-lower-bound column-name)
-    (let* ([indexed-columns (rl-table-indexed-columns table)]
-           [index-maps (rl-table-index-maps table)]
-           [subscript (index-of indexed-columns column-name)])
-      (if (false? subscript)
-          (error "column index does not exist")
-          (lambda (column-value) (svec-lower-bound (list-ref index-maps subscript) column-value)))))
-  (define (rl-basic-iter-index-ref column-name)
-    (let* ([indexed-columns (rl-table-indexed-columns table)]
-           [index-maps (rl-table-index-maps table)]
-           [subscript (index-of indexed-columns column-name)])
-      (if (false? subscript)
-          (error "column index does not exist")
-          (lambda (idx) (svec-ref (list-ref index-maps subscript) idx)))))
   (rl-iter #|repr|#  (rl-basic-iter table (rl-phantom-tuple))
            #|procs|# (rl-iter-procs rl-basic-iter-get
                                     rl-basic-iter-next
@@ -307,9 +239,7 @@
                                     rl-basic-iter-name
                                     rl-basic-iter-columns
                                     rl-basic-iter-indexable-check
-                                    rl-basic-iter-index
-                                    rl-basic-iter-index-lower-bound
-                                    rl-basic-iter-index-ref)))
+                                    rl-basic-iter-index)))
 
 (struct rl-cartesian-iter (base1 base2))
 
@@ -324,7 +254,7 @@
             [base2 (rl-cartesian-iter-base2 cartesian-iter)])
         (if (rl-iter-test base2)
             (rl-cartesian-iter-next cartesian-iter)
-            cartesian-iter)))
+          cartesian-iter)))
     (let ([base1 (rl-cartesian-iter-base1 cartesian-iter)]
           [base2 (rl-cartesian-iter-base2 cartesian-iter)])
       (cond [(rl-iter-test base1) (error "cartesian iterator at end")]
@@ -350,8 +280,6 @@
                                     rl-cartesian-iter-rewind
                                     rl-cartesian-iter-name
                                     rl-cartesian-iter-columns
-                                    null
-                                    null
                                     null
                                     null)))
 
@@ -390,8 +318,6 @@
                                       rl-projection-iter-rewind
                                       rl-projection-iter-name
                                       rl-projection-iter-columns
-                                      null
-                                      null
                                       null
                                       null))))
 
@@ -436,6 +362,13 @@
                      (~a (raw-expr->string raw-condition))
                      ">"))
     (define (rl-select-iter-columns) (rl-iter-columns base))
+    (define (rl-select-iter-indexable-check column-name) (rl-iter-indexable? base column-name))
+    (define (rl-select-iter-index column-name)
+      (lambda (column-value)
+        (and-let* ([base-index (rl-iter-index base)]
+                   [tuple (base-index column-value)]
+                   [check-result (compiled-condition tuple)])
+          tuple)))
     (rl-iter #|repr|#  (rl-select-iter base)
              #|procs|# (rl-iter-procs rl-select-iter-get
                                       rl-select-iter-next
@@ -443,10 +376,8 @@
                                       rl-select-iter-rewind
                                       rl-select-iter-name
                                       rl-select-iter-columns
-                                      null
-                                      null
-                                      null
-                                      null))))
+                                      rl-select-iter-indexable-check
+                                      rl-select-iter-index))))
 
 (struct rl-equiv-join-iter (iter1))
 
@@ -490,16 +421,6 @@
                      [iter1-key (iter1-column-selector iter1-tuple)]
                      [iter2-tuple (iter2-index iter1-key)])
                     (append iter1-tuple iter2-tuple)))))
-    (define (rl-equiv-join-iter-index-lower-bound column-name)
-      (let ([iter1-index-lower-bound (rl-iter-index-lower-bound iter1)])
-        (lambda (column-name) (iter1-index-lower-bound column-name))))
-    (define (rl-equiv-join-iter-index-ref column-name)
-      (let ([iter1-index-ref (rl-iter-index-ref iter1)])
-        (lambda (idx)
-          (and-let* ([iter1-tuple (iter1-index-ref idx)]
-                     [iter1-key (iter1-column-selector iter1-tuple)]
-                     [iter2-tuple (iter2-index)])
-             (append iter1-tuple iter2-tuple)))))
     (rl-iter #|repr|#  (rl-equiv-join-iter iter1)
              #|procs|# (rl-iter-procs rl-equiv-join-iter-get
                                       rl-equiv-join-iter-next
@@ -508,103 +429,7 @@
                                       rl-equiv-join-iter-name
                                       rl-equiv-join-iter-columns
                                       rl-equiv-join-iter-indexable-check
-                                      rl-equiv-join-iter-index
-                                      rl-equiv-join-iter-index-lower-bound
-                                      rl-equiv-join-iter-index-ref))))
-
-(struct rl-regular-ranged-iter (base))
-
-(struct rl-indexed-ranged-iter (subscript))
-
-(define (rl-build-regular-ranged-iter base column lower-bound upper-bound)
-  (define (bound-check value)
-    (and (if (not-null? lower-bound)
-             (greater-or-eq? value lower-bound)
-             true)
-         (if (not-null? upper-bound)
-             (less-or-eq? value upper-bound)
-             true)))
-  (let* ([base-columns (rl-iter-columns base)]
-         [column-selector (rl-build-column-selector base-columns column)])
-    (define (rl-ranged-iter-get ranged-iter)
-      (let ([base (rl-regular-ranged-iter-base ranged-iter)])
-        (rl-iter-get base)))
-    (define (rl-ranged-iter-next ranged-iter)
-      (define (rl-ranged-iter-next-int base)
-        (cond [(rl-iter-test base) base]
-              [(bound-check (column-selector (rl-iter-get base))) base]
-              [else (rl-ranged-iter-next-int (rl-iter-next base))]))
-      (let* ([base (rl-regular-ranged-iter-base ranged-iter)]
-             [base-next (rl-iter-next base)])
-        (rl-regular-ranged-iter (rl-ranged-iter-next-int base-next))))
-    (define (rl-ranged-iter-test ranged-iter)
-      (let ([base (rl-regular-ranged-iter-base ranged-iter)])
-        (rl-iter-test base)))
-    (define (rl-ranged-iter-rewind ranged-iter)
-      (rl-regular-ranged-iter (rl-iter-rewind (rl-regular-ranged-iter-base ranged-iter))))
-    (define (rl-ranged-iter-name)
-      (string-append "RANGE<" (rl-iter-name base) "; "
-                     column "; "
-                     (~a lower-bound) "; "
-                     (~a upper-bound) ">"))
-    (define (rl-ranged-iter-columns)
-      (rl-iter-columns base))
-    (rl-iter #|repr|#  (rl-regular-ranged-iter base)
-             #|procs|# (rl-iter-procs rl-ranged-iter-get
-                                      rl-ranged-iter-next
-                                      rl-ranged-iter-test
-                                      rl-ranged-iter-rewind
-                                      rl-ranged-iter-name
-                                      rl-ranged-iter-columns
-                                      null
-                                      null
-                                      null
-                                      null))))
-
-(define (rl-build-indexed-ranged-iter base column lower-bound upper-bound)
-  (let* ([index-lower-bound (rl-iter-index-lower-bound base column)]
-         [index-ref (rl-iter-index-ref base column)]
-         [first-subscript (if (null? lower-bound)
-                              0
-                              (index-lower-bound lower-bound))])
-    (define (rl-ranged-iter-get ranged-iter)
-      (let ([subscript (rl-indexed-ranged-iter-subscript ranged-iter)])
-        (cdr (index-ref subscript))))
-    (define (rl-ranged-iter-next ranged-iter)
-      (define (rl-ranged-iter-next-int subscript)
-        (and-let* ([kvpair (index-ref subscript)]
-                   [key (car kvpair)])
-          (cond [(and (not-null? upper-bound) (greater? key upper-bound)) false]
-                [else subscript])))
-      (let ([subscript (rl-indexed-ranged-iter-subscript ranged-iter)])
-        (rl-indexed-ranged-iter
-         (cond [(null? subscript) first-subscript]
-               [(false? subscript) (error "iterator already at end")]
-               [else (rl-ranged-iter-next-int (+ subscript 1))]))))
-    (define (rl-ranged-iter-test ranged-iter)
-      (let ([subscript (rl-indexed-ranged-iter-subscript ranged-iter)])
-        (false? subscript)))
-    (define (rl-ranged-iter-rewind ranged-iter)
-      (unused ranged-iter)
-      (rl-indexed-ranged-iter null))
-    (define (rl-ranged-iter-name)
-      (string-append "INDEXED-RANGE<" (rl-iter-name base) "; "
-                     column "; "
-                     (~a lower-bound) "; "
-                     (~a upper-bound) ">"))
-    (define (rl-ranged-iter-columns)
-      (rl-iter-columns base))
-    (rl-iter #|repr|#  (rl-indexed-ranged-iter null)
-             #|procs|# (rl-iter-procs rl-ranged-iter-get
-                                      rl-ranged-iter-next
-                                      rl-ranged-iter-test
-                                      rl-ranged-iter-rewind
-                                      rl-ranged-iter-name
-                                      rl-ranged-iter-columns
-                                      null
-                                      null
-                                      null
-                                      null))))
+                                      rl-equiv-join-iter-index))))
 
 (define (rl-iter-traverse iter)
   (displayln (rl-iter-name iter))
@@ -622,119 +447,3 @@
 
 (define (rl-preprocess fields from-tables where-clauses)
   (unimplemented))
-
-(define players-table
-  (rl-build-table "players-table"
-                  '("pno" "pname" "pteam")
-                  '((1 "QDU.Sumoon" "Qingdao University")
-                    (2 "BUG.Chu1gda" "BUGaming")
-                    (3 "ICE.1000" "Internal Compiler Error")
-                    (4 "CHUK-SZ.ZYF" "CHinese University of HongKong (Shenzhen)")
-                    (5 "ICE.Hoshino" "Internal Compilter Error"))
-                  "pno" "pname"))
-
-(define tools-table
-  (rl-build-table "tools-table"
-                  '("tno" "tname" "tvendor")
-                  '((1 "Dev-CPP" "ACM-ICPC")
-                    (2 "Intellij-IDEA" "Jetbrains")
-                    (3 "QtCreator" "Digia")
-                    (4 "CLion" "Jetbrains"))
-                  "tno" "tname"))
-  
-(define players-tools-table
-  (rl-build-table "players-tools-table"
-                  '("pno1" "tno1")
-                  '((1 1)
-                    (2 3)
-                    (3 2)
-                    (4 4)
-                    (5 2))
-                  "pno1" "tno1"))
-
-(define players-table-iter (rl-build-basic-iter players-table))
-
-(writeln ((rl-iter-index players-table-iter "pno") 2))
-(writeln ((rl-iter-index players-table-iter "pname") "ICE.1000"))
-(displayln "")
-
-(define tools-table-iter (rl-build-basic-iter tools-table))
-
-(define players-tools-table-iter (rl-build-basic-iter players-tools-table))
-
-(define pt-iter players-tools-table-iter)
-
-(define jetbrains-tools-table-iter
-  (rl-build-select-iter tools-table-iter (list equal? (rl-ref "tvendor") "Jetbrains")))
-
-(define three-cartesian-iter
-  (rl-build-cartesian-iter (rl-build-cartesian-iter players-table-iter
-                                                    tools-table-iter)
-                           players-tools-table-iter))
-
-(define selected-iter1
-  (rl-build-select-iter three-cartesian-iter (list = (rl-ref "tno") (rl-ref "tno1"))))
-
-(define selected-iter2
-  (rl-build-select-iter selected-iter1 (list = (rl-ref "pno") (rl-ref "pno1"))))
-
-(define final-projection-iter
-  (rl-build-projection-iter selected-iter2 (list "pno" "pname" "pteam" "tname" "tvendor")))
-
-(define final-selected-iter
-  (rl-build-select-iter final-projection-iter (list equal? (rl-ref "tvendor") "Jetbrains")))
-
-(rl-iter-traverse players-table-iter)
-
-(rl-iter-traverse jetbrains-tools-table-iter)
-
-(rl-iter-traverse final-projection-iter)
-
-(rl-iter-traverse final-selected-iter)
-
-(define players-tools-equiv-join-iter
-  (rl-build-equiv-join-iter
-   (rl-build-equiv-join-iter pt-iter players-table-iter "pno1" "pno")
-   tools-table-iter "tno1" "tno"))
-
-(rl-iter-traverse players-tools-equiv-join-iter)
-
-(define students-table
-  (rl-build-table "students-table"
-                  '("name" "score")
-                  '(("dyj" 59)
-                    ("ctz" 80)
-                    ("lc" 70)
-                    ("ly" 62)
-                    ("lhz" 65)
-                    ("glc" 55))
-                  "score"))
-(define students-table-iter
-  (rl-build-basic-iter students-table))
-
-(define students-table-ranged-iter1
-  (rl-build-regular-ranged-iter students-table-iter "score" 60 79))
-
-(define students-table-ranged-iter2
-  (rl-build-indexed-ranged-iter students-table-iter "score" 60 79))
-
-(define students-table-ranged-iter3
-  (rl-build-regular-ranged-iter students-table-iter "score" null 79))
-
-(define students-table-ranged-iter4
-  (rl-build-indexed-ranged-iter students-table-iter "score" null 79))
-
-(define students-table-ranged-iter5
-  (rl-build-regular-ranged-iter students-table-iter "score" 60 null))
-
-(define students-table-ranged-iter6
-  (rl-build-indexed-ranged-iter students-table-iter "score" 60 null))
-
-(rl-iter-traverse students-table-iter)
-
-(rl-iter-traverse students-table-ranged-iter1)
-(rl-iter-traverse students-table-ranged-iter2)
-(rl-iter-traverse students-table-ranged-iter3)
-(rl-iter-traverse students-table-ranged-iter4)
-(rl-iter-traverse students-table-ranged-iter5)
-(rl-iter-traverse students-table-ranged-iter6)
