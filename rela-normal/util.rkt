@@ -13,7 +13,8 @@
          greater?
          less-or-eq?
          greater-or-eq?
-         map-recur)
+         map-recur
+         to-be-or-not-to-be)
 
 ; unimplemented stuffs and todos
 (define (unimplemented) (error "unimplemented"))
@@ -60,3 +61,8 @@
   (define (map-one item)
     (if (list? item) (map map-one item) (proc item)))
   (map map-one x))
+
+(define (to-be-or-not-to-be x) 
+  (if (false? x)
+      false
+      true))
