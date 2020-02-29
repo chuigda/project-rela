@@ -14,7 +14,7 @@
 ; basic table
 (struct rl-table (name columns tuples indexed-columns index-maps))
 
-; used in many situations, we also make it "public"
+; used in many procedures
 (define (rl-build-column-selector table-columns column-name)
   (let ([column-index (index-of table-columns column-name)])
     (if (equal? column-index false)
@@ -37,12 +37,3 @@
                 tuples
                 indexed-columns
                 (map rl-build-one-index indexed-columns))))
-
-(provide rl-table-info
-         rl-table-info-name
-         rl-table-info-columns
-         rl-table-info-tuples
-         rl-table-info-indexed-columns
-         rl-table-info-column-scales)
-
-(struct rl-table-info name columns tuples index-columns column-scales)
