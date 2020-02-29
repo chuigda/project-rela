@@ -14,7 +14,9 @@
          less-or-eq?
          greater-or-eq?
          map-recur
-         to-be-or-not-to-be)
+         to-be-or-not-to-be
+         false2null
+         any-of)
 
 ; unimplemented stuffs and todos
 (define (unimplemented) (error "unimplemented"))
@@ -66,3 +68,13 @@
   (if (false? x)
       false
       true))
+
+(define (false2null x)
+  (if (false? x)
+      null
+      x))
+
+(define (any-of f l)
+  (cond [(null? l) false]
+        [(f (car l)) true]
+        [else (any-of f (cdr l))]))

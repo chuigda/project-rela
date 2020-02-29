@@ -7,7 +7,6 @@
 (require racket/format)
 (require racket/trace)
 (require errortrace)
-(require srfi/1)
 (require srfi/2)
 (require srfi/43)
 
@@ -22,11 +21,11 @@
                   ['sub-nodes sub-nodes]
                   ['indexable-with? false]
                   ['has-field? 
-                    (any (lambda (sub-node) (sub-node 'has-field? (car params))) sub-nodes)]
+                    (any-of (lambda (sub-node) (sub-node 'has-field? (car params))) sub-nodes)]
                   ['disp
                     (string-append "<" (string-join (map (lambda (sub-node) (sub-node 'disp))
                                                          sub-nodes)
-                                                    " x ")
+                                                    " * ")
                                    ">")])))
 
 (define (rl-build-equiv-join lhs rhs lhs-var rhs-var)
@@ -55,10 +54,10 @@
   (lambda (message . params)
     (case message ['type 'table]
                   ['name name]
-                  ['indexable-with? (any (lambda (column) (equal? column (car params)))
-                                         indexed-columns)]
-                  ['has-field? (any (lambda (column) (equal? column (car params))
-                                    columns))]
+                  ['indexable-with? (any-of (lambda (column) (equal? column (car params)))
+                                            indexed-columns)]
+                  ['has-field? (any-of (lambda (column) (equal? column (car params))
+                                       columns))]
                   ['disp name])))
 
 (define (rl-adapt-table table)
@@ -71,19 +70,19 @@
 (define (rl-optimize cartesian-node conditions)
   (define (equiv-join-condition? condition)
     (and (= (length condition) 3)
-         (or (equal? (car condition) =)
-             (equal? (car condition) equal?))
-         (rl-ref? (cadr condition))
-         (rl-ref? (caddr condition))))
-  (define (condition-lhs condition) (cadr condition))
-  (define (condition-rhs condition) (cddr condition))
+         (or (equal? (first condition) =)
+             (equal? (first condition) equal?))
+         (rl-ref? (second condition))
+         (rl-ref? (third condition))))
+  (define (condition-lhs condition) (second condition))
+  (define (condition-rhs condition) (third condition))
   (define (find-lhs-in-tree tree lhs-var)
     (if (tree 'indexable-with lhs-var)
         (case (tree 'type)
               ['cartesian 
-                (find not-null?
-                      (map (lambda (sub-tree) (find-lhs-in-tree sub-tree lhs-var))
-                           (tree 'sub-nodes)))]
+                (false2null (findf not-null?
+                                   (map (lambda (sub-tree) (find-lhs-in-tree sub-tree lhs-var))
+                                   (tree 'sub-nodes))))]
               ['equiv-join 
                 (let* ([lhs-sub-tree (tree 'lhs)]
                        [rhs-sub-tree (tree 'rhs)]
@@ -95,49 +94,50 @@
               ['table tree])
         null))
   (define (find-rhs-top-level cartesian-node rhs-var)
-    (findf (lambda (node) (node 'indexable-with? rhs-var))
-           (cartesian-node 'sub-nodes)))
+    (false2null (findf (lambda (node) (node 'indexable-with? rhs-var))
+                       (cartesian-node 'sub-nodes))))
   (define (remove-from-cartesian cartesian-node removed-node)
-    (rl-build-cartesian (remove (cartesian-node 'sub-nodes) removed-node eq?)))
+    (rl-build-cartesian (remove removed-node (cartesian-node 'sub-nodes) eq?)))
   (define (replace-in-tree tree replaced replacement)
-    (if (eq? tree replacement)
+    (if (eq? tree replaced)
         replacement
         (case (tree 'type)
               ['cartesian 
-                (rl-build-cartesian (map (lambda (sub-tree) (replace-in-tree sub-tree replacement))
+                (rl-build-cartesian (map (lambda (sub-tree) 
+                                           (replace-in-tree sub-tree replaced replacement))
                                          (tree 'sub-nodes)))]
               ['equiv-join
                 (let* ([lhs-sub-tree (tree 'lhs)]
                        [rhs-sub-tree (tree 'rhs)]
                        [lhs-var (tree 'lhs-var)]
                        [rhs-var (tree 'rhs-var)])
-                  (rl-build-equiv-join (replace-in-tree lhs-sub-tree replacement)
-                                       (replace-in-tree rhs-sub-tree replace-in-tree)
+                  (rl-build-equiv-join (replace-in-tree lhs-sub-tree replaced replacement)
+                                       (replace-in-tree rhs-sub-tree replaced replace-in-tree)
                                        lhs-var
                                        rhs-var))]
               ['table tree])))
   (define (try-find-equiv-join cartesian-node condition)
     (if (not (equiv-join-condition? condition))
-      cartesian-node
-      (let* ([lhs-var (condition-lhs condition)]
-             [rhs-var (condition-rhs condition)]
-             [lhs-var-name (rl-ref-var lhs-var)]
-             [rhs-var-name (rl-ref-var rhs-var)]
-             [lhs-node (find-lhs-in-tree cartesian-node lhs-var-name)]
-             [rhs-node (find-rhs-top-level cartesian-node rhs-var-name)])
-        (if (or (null? lhs-node) (null? rhs-node))
-            cartesian-node
-            (replace-in-tree (remove-from-cartesian cartesian-node rhs-node)
-                             lhs-node
-                             (rl-build-equiv-join lhs-node
-                                                  rhs-node
-                                                  lhs-var-name
-                                                  rhs-var-name))))))
+        cartesian-node
+        (let* ([lhs-var (condition-lhs condition)]
+               [rhs-var (condition-rhs condition)]
+               [lhs-var-name (rl-ref-var lhs-var)]
+               [rhs-var-name (rl-ref-var rhs-var)]
+               [lhs-node (find-lhs-in-tree cartesian-node lhs-var-name)]
+               [rhs-node (find-rhs-top-level cartesian-node rhs-var-name)])
+          (if (or (null? lhs-node) (null? rhs-node))
+              cartesian-node
+              (replace-in-tree (remove-from-cartesian cartesian-node rhs-node)
+                               lhs-node
+                               (rl-build-equiv-join lhs-node
+                                                    rhs-node
+                                                    lhs-var-name
+                                                    rhs-var-name))))))
   (define (optimize-int tree equiv-join-conditions)
     (if (null? equiv-join-conditions)
+        tree
         (optimize-int (try-find-equiv-join tree (car equiv-join-conditions))
-                      (cdr equiv-join-conditions))
-        tree))
+                      (cdr equiv-join-conditions))))
   (let* ([equiv-join-conditions (filter equiv-join-condition? conditions)]
          [permuts (permutations equiv-join-conditions)])
     (map (lambda (equiv-join-conditions) (optimize-int cartesian-node equiv-join-conditions))

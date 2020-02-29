@@ -17,4 +17,4 @@
 (for-each (lambda (tree) (displayln (tree 'disp)))
           (rl-optimize three-cartesian
                        (list (list = (rl-ref "sno") (rl-ref "sno1"))
-                             (list = (rl-ref "cno") (rl-ref "cno1")))))
+                             (list = (rl-ref "cno1") (rl-ref "cno")))))
