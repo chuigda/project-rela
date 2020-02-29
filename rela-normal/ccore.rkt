@@ -32,18 +32,22 @@
                   ['has-field? (or (lhs 'has-field? (car params))
                                    (rhs 'has-field? (car params)))])))
 
-(define (rl-adapt-table table)
+(define (rl-build-table-info name columns indexed-columns)
   (lambda (message . params)
-    (let ([columns (rl-table-columns table)]
-          [indexed-columns (rl-table-indexed-columns table)])
-      (case message ['type 'table]
-                    ['indexable-with? (any (lambda (column) (equal? column (car params)))
-                                      indexed-columns)]
-                    ['has-field? (any (lambda (column) (equal? column (car params)))
-                                      columns)]))))
+    (case message ['type 'table]
+                  ['name name]
+                  ['indexable-with? (any (lambda (column) (equal? column (car params)))
+                                         indexed-columns)]
+                  ['has-field? (any (lambda (column) (equal? column (car params))
+                                    columns))])))
+
+(define (rl-adapt-table table)
+  (rl-build-table-info (rl-table-name table)
+                       (rl-table-columns table)
+                       (rl-table-indexed-columns table)))
 
 (define (rl-optimize cartesian-node conditions)
-  (define (maybe-equiv-join-condition? condition)
+  (define (equiv-join-condition? condition)
     (and (= (length condition) 3)
          (or (equal? (car condition) =)
              (equal? (car condition) equal?))
@@ -91,7 +95,7 @@
                                        rhs-var))]
               ['table tree])))
   (define (try-find-equiv-join cartesian-node condition)
-    (if (not (maybe-equiv-join-condition? condition))
+    (if (not (equiv-join-condition? condition))
       cartesian-node
       (let* ([lhs-var (condition-lhs condition)]
              [rhs-var (condition-rhs condition)]
@@ -107,4 +111,12 @@
                                                   rhs-node
                                                   lhs-var-name
                                                   rhs-var-name))))))
-  null)
+  (define (optimize-int tree equiv-join-conditions)
+    (if (null? equiv-join-conditions)
+        (optimize-int (try-find-equiv-join tree (car equiv-join-conditions))
+                      (cdr equiv-join-conditions))
+        tree))
+  (let* ([equiv-join-conditions (filter equiv-join-condition? conditions)]
+         [permuts (permutations equiv-join-conditions)])
+    (map (lambda (equiv-join-conditions) (optimize-int cartesian-node equiv-join-conditions)
+                 permuts))))
