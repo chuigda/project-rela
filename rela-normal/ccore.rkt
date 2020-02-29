@@ -1,14 +1,16 @@
 #lang racket
 
-(require "table.rkt")
-(require "rela.rkt")
-(require "util.rkt")
-
 (require racket/format)
 (require racket/trace)
 (require errortrace)
 (require srfi/2)
 (require srfi/43)
+
+(require "expr.rkt")
+(require "table.rkt")
+(require "util.rkt")
+
+(provide rl-ref rl-ref? rl-ref-var)
 
 (provide rl-build-cartesian
          rl-build-equiv-join
@@ -20,6 +22,7 @@
     (case message ['type 'cartesian]
                   ['sub-nodes sub-nodes]
                   ['indexable-with? false]
+                  ['fields (foldl append (map (lambda (sub-node) (sub-node 'fields)) sub-nodes))]
                   ['has-field? 
                     (any-of (lambda (sub-node) (sub-node 'has-field? (car params))) sub-nodes)]
                   ['disp
@@ -28,6 +31,26 @@
                                                     " * ")
                                    ">")])))
 
+(define (rl-build-cartesian-2 lhs rhs)
+  (lambda (message . params)
+    (case message ['type 'cartesian2]
+                  ['lhs lhs]
+                  ['rhs rhs]
+                  ['fields (append (lhs 'fields) (rhs 'fields))]
+                  ['has-field? (or (lhs 'has-field? (car params))
+                                   (rhs 'has-field? (car params)))]
+                  ['indexable-with? false]
+                  ['disp (string-append "<" (lhs 'disp) " * " (rhs 'disp) ">")])))
+
+(define (rl-build-selection selected condition)
+  (lambda (message . params)
+    (case message ['type 'select]
+                  ['selected selected]
+                  ['condition condition]
+                  ['fields (selected 'fields)]
+                  ['has-field? (selected 'has-field (car params))]
+                  ['indexable-with? false])))
+
 (define (rl-build-equiv-join lhs rhs lhs-var rhs-var)
   (lambda (message . params)
     (case message ['type 'equiv-join]
@@ -35,6 +58,7 @@
                   ['rhs rhs]
                   ['lhs-var lhs-var]
                   ['rhs-var rhs-var]
+                  ['fields (append (lhs 'fields) (rhs 'fields))]
                   ['indexable-with? (lhs 'indexable-with? (car params))]
                   ['has-field? 
                     (or (lhs 'has-field? (car params))
@@ -54,6 +78,7 @@
   (lambda (message . params)
     (case message ['type 'table]
                   ['name name]
+                  ['fields columns]
                   ['indexable-with? (any-of (lambda (column) (equal? column (car params)))
                                             indexed-columns)]
                   ['has-field? (any-of (lambda (column) (equal? column (car params))
@@ -81,6 +106,8 @@
       (if (tree 'indexable-with? lhs-var)
           (case (tree 'type)
                 ['cartesian (unreachable)]
+                ['cartesian2 (unreachable)]
+                ['select (unreachable)]
                 ['equiv-join 
                   (let* ([lhs-sub-tree (tree 'lhs)]
                          [rhs-sub-tree (tree 'rhs)]
@@ -106,6 +133,15 @@
                 (rl-build-cartesian (map (lambda (sub-tree) 
                                            (replace-in-tree sub-tree replaced replacement))
                                          (tree 'sub-nodes)))]
+              ['cartesian2
+                (let ([lhs-sub-tree (tree 'lhs)]
+                      [rhs-sub-tree (tree 'rhs)])
+                  (rl-build-cartesian-2 (replace-in-tree lhs-sub-tree replaced replacement)
+                                        (replace-in-tree rhs-sub-tree replaced replacement)))]
+              ['select
+                (let ([selected (tree 'selected)]
+                      [condition (tree 'condition)])
+                  (rl-build-selection (replace-in-tree selected replaced replacement) condition))]
               ['equiv-join
                 (let* ([lhs-sub-tree (tree 'lhs)]
                        [rhs-sub-tree (tree 'rhs)]
@@ -142,8 +178,17 @@
                                                       lhs-var-name))
                 null)
             cartesian-node)))
+  (define (find-node-with-vars tree vars)
+    (let ([tree-vars (tree 'fields)])
+      (if (list-contains? tree-vars vars)
+          (case (tree 'type)
+                ['cartesian (unimplemented)]
+                ['cartesian2 (unimplemented)]
+                ['select tree]
+                ['equiv-join (unimplemented)]
+                ['table tree])
+          null)))
   (define (optimize-int trees equiv-join-conditions)
-    ; (for-each (lambda (tree) (displayln (tree 'disp))) trees)
     (if (null? equiv-join-conditions)
         trees
         (optimize-int

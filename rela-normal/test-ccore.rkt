@@ -1,11 +1,11 @@
 #lang racket
 
+(require racket/trace)
+(require errortrace)
+
 (require "ccore.rkt")
 (require "rela.rkt")
 (require "util.rkt")
-
-(require racket/trace)
-(require errortrace)
 
 (define students-table (rl-build-table-info "students" '("sno" "sname" "sdept") '("sno")))
 (define courses-table (rl-build-table-info "courses" '("cno" "cname" "cdesc") '("cno")))

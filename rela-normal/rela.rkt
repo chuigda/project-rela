@@ -3,13 +3,15 @@
 (require racket/format)
 (require racket/trace)
 (require errortrace)
-
 (require srfi/2)
 (require srfi/43)
 
 (require "util.rkt")
 (require "svec.rkt")
 (require "table.rkt")
+(require "expr.rkt")
+
+(provide rl-ref rl-ref? rl-ref-var)
 
 (provide rl-build-table
          rl-table-name
@@ -18,15 +20,6 @@
          rl-table-indexed-columns
          rl-table-index-maps
          rl-build-column-selector)
-
-; making eval work
-(current-namespace (make-base-namespace))
-
-(provide rl-ref rl-ref? rl-ref-var)
-
-; for building name references in raw expressions
-(struct rl-ref (name))
-(define rl-ref-var rl-ref-name)
 
 (provide display-table)
 
@@ -175,23 +168,6 @@
 (provide rl-build-select-iter)
 
 (define (rl-build-select-iter base-origin raw-condition)
-  (define (raw-expr->string raw-expr)
-    (define (rl-ref-replace raw-expr)
-      (map-recur (lambda (x) (if (rl-ref? x) (rl-ref-name x) x))
-                 raw-expr))
-    (string-replace (~a (rl-ref-replace raw-expr)) "procedure:" ""))
-  (define (rl-compile-expr table-columns incomplete-expr)
-    (define (rl-compile-item item tuple)
-      (cond [(rl-ref? item)
-             (let ([column-name (rl-ref-name item)])
-               (list (rl-build-column-selector table-columns column-name) 
-                     (list (lambda () tuple))))]
-            [(list? item) (rl-compile-list item tuple)]
-            [else item]))
-    (define (rl-compile-list the-list tuple)
-      (map (lambda (item) (rl-compile-item item tuple)) the-list))
-    (lambda (tuple) (eval (map (lambda (item) (rl-compile-item item tuple))
-                               incomplete-expr))))
   (let ([compiled-condition (rl-compile-expr (rl-iter-columns base-origin) raw-condition)])
     (define (rl-build-select-iter-int base)
       (define (rl-select-iter-get) (rl-iter-get base))
@@ -287,10 +263,3 @@
         (begin (writeln (rl-iter-get iter))
                (rl-iter-traverse-int (rl-iter-next iter)))))
   (rl-iter-traverse-int (rl-iter-next iter)))
-
-(struct rl-query-node (sub-nodes selections))
-
-(struct rl-query (root-node projection))
-
-(define (rl-preprocess fields from-tables where-clauses)
-  (unimplemented))

@@ -17,7 +17,8 @@
          map-recur
          to-be-or-not-to-be
          false2null
-         any-of)
+         any-of
+         list-contains?)
 
 ; unimplemented stuffs and todos
 (define (unimplemented) (error "unimplemented"))
@@ -81,3 +82,7 @@
   (cond [(null? l) false]
         [(f (car l)) true]
         [else (any-of f (cdr l))]))
+
+(define (list-contains? container containment)
+    (foldl and-proc (map (lambda (element) (to-be-or-not-to-be (member element container)))
+                         containment)))
