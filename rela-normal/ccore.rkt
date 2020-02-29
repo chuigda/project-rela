@@ -140,5 +140,5 @@
         tree))
   (let* ([equiv-join-conditions (filter equiv-join-condition? conditions)]
          [permuts (permutations equiv-join-conditions)])
-    (map (lambda (equiv-join-conditions) (optimize-int cartesian-node equiv-join-conditions)
-                 permuts))))
+    (map (lambda (equiv-join-conditions) (optimize-int cartesian-node equiv-join-conditions))
+                 permuts)))
