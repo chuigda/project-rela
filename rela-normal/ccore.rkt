@@ -117,39 +117,40 @@
                                        rhs-var))]
               ['table tree])))
   (define (try-find-equiv-join cartesian-node condition)
-    (if (not (equiv-join-condition? condition))
-        cartesian-node
-        (let* ([lhs-var (condition-lhs condition)]
-               [rhs-var (condition-rhs condition)]
-               [lhs-var-name (rl-ref-var lhs-var)]
-               [rhs-var-name (rl-ref-var rhs-var)]
-               [lhs-node-1 (find-lhs-in-tree cartesian-node lhs-var-name)]
-               [rhs-node-1 (find-rhs-top-level cartesian-node rhs-var-name)]
-               [lhs-node-2 (find-lhs-in-tree cartesian-node rhs-var-name)]
-               [rhs-node-2 (find-rhs-top-level cartesian-node lhs-var-name)])
-          (cond [(and (not-null? lhs-node-1) (not-null? rhs-node-1))
-                 (replace-in-tree (remove-from-cartesian cartesian-node rhs-node-1)
-                                  lhs-node-1
-                                  (rl-build-equiv-join lhs-node-1
-                                                       rhs-node-1
-                                                       lhs-var-name
-                                                       rhs-var-name))]
-                [(and (not-null? lhs-node-2) (not-null? rhs-node-2))
-                 (replace-in-tree (remove-from-cartesian cartesian-node rhs-node-2)
-                                  lhs-node-2
-                                  (rl-build-equiv-join lhs-node-2
-                                                       rhs-node-2
-                                                       rhs-var-name
-                                                       lhs-var-name))]
-                [else cartesian-node]))))
-  (define (optimize-int tree equiv-join-conditions)
-    ; (displayln (tree 'disp))
-    ; (displayln equiv-join-conditions)
+    (let* ([lhs-var (condition-lhs condition)]
+           [rhs-var (condition-rhs condition)]
+           [lhs-var-name (rl-ref-var lhs-var)]
+           [rhs-var-name (rl-ref-var rhs-var)]
+           [lhs-node-1 (find-lhs-in-tree cartesian-node lhs-var-name)]
+           [rhs-node-1 (find-rhs-top-level cartesian-node rhs-var-name)]
+           [lhs-node-2 (find-lhs-in-tree cartesian-node rhs-var-name)]
+           [rhs-node-2 (find-rhs-top-level cartesian-node lhs-var-name)])
+      (list (if (and (not-null? lhs-node-1) (not-null? rhs-node-1))
+                (replace-in-tree (remove-from-cartesian cartesian-node rhs-node-1)
+                                 lhs-node-1
+                                 (rl-build-equiv-join lhs-node-1
+                                                      rhs-node-1
+                                                      lhs-var-name
+                                                      rhs-var-name))
+                null)
+            (if (and (not-null? lhs-node-2) (not-null? rhs-node-2))
+                (replace-in-tree (remove-from-cartesian cartesian-node rhs-node-2)
+                                 lhs-node-2
+                                 (rl-build-equiv-join lhs-node-2
+                                                      rhs-node-2
+                                                      rhs-var-name
+                                                      lhs-var-name))
+                null)
+            cartesian-node)))
+  (define (optimize-int trees equiv-join-conditions)
+    ; (for-each (lambda (tree) (displayln (tree 'disp))) trees)
     (if (null? equiv-join-conditions)
-        tree
-        (optimize-int (try-find-equiv-join tree (car equiv-join-conditions))
-                      (cdr equiv-join-conditions))))
-  (let* ([equiv-join-conditions (filter equiv-join-condition? conditions)]
-         [permuts (permutations equiv-join-conditions)])
-    (map (lambda (equiv-join-conditions) (optimize-int cartesian-node equiv-join-conditions))
-                 permuts)))
+        trees
+        (optimize-int
+          (flatten (map (lambda (tree)
+                          (remove null
+                            (try-find-equiv-join tree (car equiv-join-conditions))))
+                        trees))
+          (cdr equiv-join-conditions))))
+  (let* ([equiv-join-conditions (filter equiv-join-condition? conditions)])
+    (optimize-int (list cartesian-node) equiv-join-conditions)))
