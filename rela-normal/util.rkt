@@ -1,6 +1,7 @@
 #lang racket
 
 (provide unimplemented
+         unreachable
          distance
          unused
          id
@@ -20,6 +21,8 @@
 
 ; unimplemented stuffs and todos
 (define (unimplemented) (error "unimplemented"))
+
+(define (unreachable) (error "unreachable"))
 
 ; distance function
 (define (distance x y) (abs (- x y)))

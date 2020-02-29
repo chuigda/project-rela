@@ -76,23 +76,23 @@
          (rl-ref? (third condition))))
   (define (condition-lhs condition) (second condition))
   (define (condition-rhs condition) (third condition))
-  (define (find-lhs-in-tree tree lhs-var)
-    (if (tree 'indexable-with lhs-var)
-        (case (tree 'type)
-              ['cartesian 
-                (false2null (findf not-null?
-                                   (map (lambda (sub-tree) (find-lhs-in-tree sub-tree lhs-var))
-                                   (tree 'sub-nodes))))]
-              ['equiv-join 
-                (let* ([lhs-sub-tree (tree 'lhs)]
-                       [rhs-sub-tree (tree 'rhs)]
-                       [lhs-result (find-lhs-in-tree lhs-sub-tree lhs-var)]
-                       [rhs-result (find-lhs-in-tree rhs-sub-tree lhs-var)])
-                  (cond [(not-null? lhs-result) lhs-result]
-                        [(not-null? rhs-result) rhs-result]
-                        [else null]))]
-              ['table tree])
-        null))
+  (define (find-lhs-in-tree cartesian lhs-var)
+    (define (find-lhs-in-tree-int tree lhs-var)
+      (if (tree 'indexable-with? lhs-var)
+          (case (tree 'type)
+                ['cartesian (unreachable)]
+                ['equiv-join 
+                  (let* ([lhs-sub-tree (tree 'lhs)]
+                         [rhs-sub-tree (tree 'rhs)]
+                         [lhs-result (find-lhs-in-tree-int lhs-sub-tree lhs-var)]
+                         [rhs-result (find-lhs-in-tree-int rhs-sub-tree lhs-var)])
+                    (cond [(not-null? lhs-result) lhs-result]
+                          [(not-null? rhs-result) rhs-result]
+                          [else null]))]
+                ['table tree])
+          null))
+    (false2null (findf not-null? (map (lambda (sub-node) (find-lhs-in-tree-int sub-node lhs-var))
+                                      (cartesian 'sub-nodes)))))
   (define (find-rhs-top-level cartesian-node rhs-var)
     (false2null (findf (lambda (node) (node 'indexable-with? rhs-var))
                        (cartesian-node 'sub-nodes))))
@@ -123,17 +123,28 @@
                [rhs-var (condition-rhs condition)]
                [lhs-var-name (rl-ref-var lhs-var)]
                [rhs-var-name (rl-ref-var rhs-var)]
-               [lhs-node (find-lhs-in-tree cartesian-node lhs-var-name)]
-               [rhs-node (find-rhs-top-level cartesian-node rhs-var-name)])
-          (if (or (null? lhs-node) (null? rhs-node))
-              cartesian-node
-              (replace-in-tree (remove-from-cartesian cartesian-node rhs-node)
-                               lhs-node
-                               (rl-build-equiv-join lhs-node
-                                                    rhs-node
-                                                    lhs-var-name
-                                                    rhs-var-name))))))
+               [lhs-node-1 (find-lhs-in-tree cartesian-node lhs-var-name)]
+               [rhs-node-1 (find-rhs-top-level cartesian-node rhs-var-name)]
+               [lhs-node-2 (find-lhs-in-tree cartesian-node rhs-var-name)]
+               [rhs-node-2 (find-rhs-top-level cartesian-node lhs-var-name)])
+          (cond [(and (not-null? lhs-node-1) (not-null? rhs-node-1))
+                 (replace-in-tree (remove-from-cartesian cartesian-node rhs-node-1)
+                                  lhs-node-1
+                                  (rl-build-equiv-join lhs-node-1
+                                                       rhs-node-1
+                                                       lhs-var-name
+                                                       rhs-var-name))]
+                [(and (not-null? lhs-node-2) (not-null? rhs-node-2))
+                 (replace-in-tree (remove-from-cartesian cartesian-node rhs-node-2)
+                                  lhs-node-2
+                                  (rl-build-equiv-join lhs-node-2
+                                                       rhs-node-2
+                                                       rhs-var-name
+                                                       lhs-var-name))]
+                [else cartesian-node]))))
   (define (optimize-int tree equiv-join-conditions)
+    ; (displayln (tree 'disp))
+    ; (displayln equiv-join-conditions)
     (if (null? equiv-join-conditions)
         tree
         (optimize-int (try-find-equiv-join tree (car equiv-join-conditions))
