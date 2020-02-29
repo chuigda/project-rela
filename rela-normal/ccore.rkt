@@ -11,15 +11,23 @@
 (require srfi/2)
 (require srfi/43)
 
-(struct rl-cartesian (sub-nodes))
+(provide rl-build-cartesian
+         rl-build-equiv-join
+         rl-build-table-info
+         rl-adapt-table)
 
 (define (rl-build-cartesian sub-nodes)
   (lambda (message . params)
     (case message ['type 'cartesian]
                   ['sub-nodes sub-nodes]
                   ['indexable-with? false]
-                  ['has-field? (any (lambda (sub-node) (sub-node 'has-field? (car params)))
-                                    sub-nodes)])))
+                  ['has-field? 
+                    (any (lambda (sub-node) (sub-node 'has-field? (car params))) sub-nodes)]
+                  ['disp
+                    (string-append "<" (string-join (map (lambda (sub-node) (sub-node 'disp))
+                                                         sub-nodes)
+                                                    " x ")
+                                   ">")])))
 
 (define (rl-build-equiv-join lhs rhs lhs-var rhs-var)
   (lambda (message . params)
@@ -29,8 +37,19 @@
                   ['lhs-var lhs-var]
                   ['rhs-var rhs-var]
                   ['indexable-with? (lhs 'indexable-with? (car params))]
-                  ['has-field? (or (lhs 'has-field? (car params))
-                                   (rhs 'has-field? (car params)))])))
+                  ['has-field? 
+                    (or (lhs 'has-field? (car params))
+                        (rhs 'has-field? (car params)))]
+                  ['disp
+                    (string-append "JOIN("
+                                   (~a lhs-var)
+                                   " -> "
+                                   (~a rhs-var)
+                                   ": "
+                                   (lhs 'disp)
+                                   ", "
+                                   (rhs 'disp)
+                                   ")")])))
 
 (define (rl-build-table-info name columns indexed-columns)
   (lambda (message . params)
@@ -39,12 +58,15 @@
                   ['indexable-with? (any (lambda (column) (equal? column (car params)))
                                          indexed-columns)]
                   ['has-field? (any (lambda (column) (equal? column (car params))
-                                    columns))])))
+                                    columns))]
+                  ['disp name])))
 
 (define (rl-adapt-table table)
   (rl-build-table-info (rl-table-name table)
                        (rl-table-columns table)
                        (rl-table-indexed-columns table)))
+
+(provide rl-optimize)
 
 (define (rl-optimize cartesian-node conditions)
   (define (equiv-join-condition? condition)
