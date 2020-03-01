@@ -14,7 +14,8 @@
 
 ; raw expression compiler
 (provide raw-expr->string
-         rl-compile-expr)
+         rl-compile-expr
+         rl-expr-vars)
 
 (define (raw-expr->string raw-expr)
     (define (rl-ref-replace raw-expr)
@@ -34,3 +35,5 @@
     (map (lambda (item) (rl-compile-item item tuple)) the-list))
   (lambda (tuple) (eval (map (lambda (item) (rl-compile-item item tuple))
                              incomplete-expr))))
+
+(define (rl-expr-vars raw-expr) (unimplemented))
