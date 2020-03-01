@@ -13,7 +13,11 @@
 
 (define three-cartesian (rl-build-cartesian (list students-table courses-table sc-table)))
 
-(for-each (lambda (tree) (displayln (tree 'disp)))
+(for-each (lambda (tree-list-pair) 
+            (begin 
+              (display ((car tree-list-pair) 'disp))
+              (display "; ")
+              (displayln (cdr tree-list-pair))))
           (rl-optimize three-cartesian
                        (list (list = (rl-ref "sno") (rl-ref "sno1"))
                              (list = (rl-ref "cno") (rl-ref "cno1"))

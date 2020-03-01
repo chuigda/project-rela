@@ -215,7 +215,7 @@
                           (lambda (tree-condition-pair)
                             (cons (car tree-condition-pair) 
                                   (cons (cdr tree-condition-pair) (cdr tree-list-pair))))
-                          (remove null
+                          (filter not-null?
                             (try-find-equiv-join (car tree-list-pair) (car equiv-join-conditions)))))
                       tree-list-pairs))
           (cdr equiv-join-conditions))))
