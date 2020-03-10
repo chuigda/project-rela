@@ -1,5 +1,7 @@
 #lang racket
 
+(require racket/set)
+
 (provide unimplemented
          unreachable
          distance
@@ -18,7 +20,8 @@
          to-be-or-not-to-be
          false2null
          any-of
-         list-contains?)
+         list-contains?
+         list-common?)
 
 ; unimplemented stuffs and todos
 (define (unimplemented) (error "unimplemented"))
@@ -86,3 +89,8 @@
 (define (list-contains? container containment)
     (foldl and-proc (map (lambda (element) (to-be-or-not-to-be (member element container)))
                          containment)))
+
+(define (list-common? list1 list2)
+  ((negate set-empty?)
+   (set-intersect (list->set list1)
+                  (list->set list2))))

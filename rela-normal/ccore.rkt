@@ -31,17 +31,6 @@
                                                     " * ")
                                    ">")])))
 
-(define (rl-build-cartesian-2 lhs rhs)
-  (lambda (message . params)
-    (case message ['type 'cartesian2]
-                  ['lhs lhs]
-                  ['rhs rhs]
-                  ['fields (append (lhs 'fields) (rhs 'fields))]
-                  ['has-field? (or (lhs 'has-field? (car params))
-                                   (rhs 'has-field? (car params)))]
-                  ['indexable-with? false]
-                  ['disp (string-append "<" (lhs 'disp) " * " (rhs 'disp) ">")])))
-
 (define (rl-build-selection selected condition)
   (lambda (message . params)
     (case message ['type 'select]
@@ -50,7 +39,11 @@
                   ['fields (selected 'fields)]
                   ['has-field? (selected 'has-field (car params))]
                   ['indexable-with? false]
-                  ['disp (string-append "SIGMA(" (raw-expr->string condition) ": " (selected 'disp) ")")])))
+                  ['disp (string-append "SIGMA("
+                                        (raw-expr->string condition)
+                                        ": "
+                                        (selected 'disp)
+                                        ")")])))
 
 (define (rl-build-equiv-join lhs rhs lhs-var rhs-var)
   (lambda (message . params)
@@ -107,7 +100,6 @@
       (if (tree 'indexable-with? lhs-var)
           (case (tree 'type)
                 ['cartesian (unreachable)]
-                ['cartesian2 (unreachable)]
                 ['select (unreachable)]
                 ['equiv-join 
                   (let* ([lhs-sub-tree (tree 'lhs)]
@@ -134,11 +126,6 @@
                 (rl-build-cartesian (map (lambda (sub-tree) 
                                            (replace-in-tree sub-tree replaced replacement))
                                          (tree 'sub-nodes)))]
-              ['cartesian2
-                (let ([lhs-sub-tree (tree 'lhs)]
-                      [rhs-sub-tree (tree 'rhs)])
-                  (rl-build-cartesian-2 (replace-in-tree lhs-sub-tree replaced replacement)
-                                        (replace-in-tree rhs-sub-tree replaced replacement)))]
               ['select
                 (let ([selected (tree 'selected)]
                       [condition (tree 'condition)])
@@ -193,17 +180,31 @@
     (let ([tree-vars (tree 'fields)])
       (if (list-contains? tree-vars vars)
           (case (tree 'type)
-                ['cartesian (unreachable)]
-                ['cartesian2 (find-binary-node tree vars)]
-                ['select tree]
+                ['cartesian 
+                 (let ([interleaving-nodes (filter (lambda (node) (list-common? (node 'fields) vars))
+                                                   (tree 'sub-nodes))])
+                 (cond [(= 1 (length interleaving-nodes)) 
+                        (find-node-with-vars (first interleaving-nodes))]
+                       [(= (length interleaving-nodes) (length (tree 'sub-nodes)))
+                        tree]
+                       [else (cons interleaving-nodes tree)]))]
+                ['select (find-node-with-vars (tree 'selected) vars)]
                 ['equiv-join (find-binary-node tree vars)]
                 ['table tree])
           null)))
   (define (pushdown-selection tree condition)
     (let* ([condition-vars (rl-expr-vars condition)]
-           [tree-node (find-node-with-vars tree condition-vars)]
-           [select-node (rl-build-selection tree-node condition)])
-      (replace-in-tree tree tree-node select-node)))
+           [result (find-node-with-vars tree (condition-vars))])
+      (if (pair? result)
+          (let* ([selected-nodes (car result)]
+                 [cartesian-node (cdr result)]
+                 [nonselected-nodes (remove* selected-nodes (cartesian-node 'sub-nodes))]
+                 [new-cartesian1 (rl-build-cartesian selected-nodes)]
+                 [selected-node (rl-build-selection new-cartesian1 condition)]
+                 [new-cartesian2 (rl-build-cartesian (cons selected-node nonselected-nodes))])
+            (replace-in-tree tree cartesian-node new-cartesian2))
+          (let ([selected-node (rl-build-selection result condition)])
+            (replace-in-tree tree result selected-node)))))
   (define (optimize-int tree-list-pairs equiv-join-conditions)
     (if (null? equiv-join-conditions)
         tree-list-pairs
