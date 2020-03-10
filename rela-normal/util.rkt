@@ -87,8 +87,11 @@
         [else (any-of f (cdr l))]))
 
 (define (list-contains? container containment)
-    (foldl and-proc (map (lambda (element) (to-be-or-not-to-be (member element container)))
-                         containment)))
+    (foldl and-proc
+           true
+           (map (lambda (element) 
+                  (to-be-or-not-to-be (member element container)))
+                containment)))
 
 (define (list-common? list1 list2)
   ((negate set-empty?)

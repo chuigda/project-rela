@@ -36,4 +36,11 @@
   (lambda (tuple) (eval (map (lambda (item) (rl-compile-item item tuple))
                              incomplete-expr))))
 
-(define (rl-expr-vars raw-expr) (unimplemented))
+(define (rl-expr-vars raw-expr)
+  (flatten
+    (remove* (list false)
+             (map (lambda (expr-item)
+                    (cond [(list? expr-item) (rl-expr-vars expr-item)]
+                          [(rl-ref? expr-item) (rl-ref-var expr-item)]
+                          [else null]))
+                  raw-expr))))

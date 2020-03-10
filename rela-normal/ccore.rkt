@@ -22,7 +22,9 @@
     (case message ['type 'cartesian]
                   ['sub-nodes sub-nodes]
                   ['indexable-with? false]
-                  ['fields (foldl append (map (lambda (sub-node) (sub-node 'fields)) sub-nodes))]
+                  ['fields (foldl append 
+                                  (list)
+                                  (map (lambda (sub-node) (sub-node 'fields)) sub-nodes))]
                   ['has-field? 
                     (any-of (lambda (sub-node) (sub-node 'has-field? (car params))) sub-nodes)]
                   ['disp
@@ -136,7 +138,7 @@
                        [lhs-var (tree 'lhs-var)]
                        [rhs-var (tree 'rhs-var)])
                   (rl-build-equiv-join (replace-in-tree lhs-sub-tree replaced replacement)
-                                       (replace-in-tree rhs-sub-tree replaced replace-in-tree)
+                                       (replace-in-tree rhs-sub-tree replaced replacement)
                                        lhs-var
                                        rhs-var))]
               ['table tree])))
@@ -184,7 +186,7 @@
                  (let ([interleaving-nodes (filter (lambda (node) (list-common? (node 'fields) vars))
                                                    (tree 'sub-nodes))])
                  (cond [(= 1 (length interleaving-nodes)) 
-                        (find-node-with-vars (first interleaving-nodes))]
+                        (find-node-with-vars (first interleaving-nodes) vars)]
                        [(= (length interleaving-nodes) (length (tree 'sub-nodes)))
                         tree]
                        [else (cons interleaving-nodes tree)]))]
@@ -194,7 +196,7 @@
           null)))
   (define (pushdown-selection tree condition)
     (let* ([condition-vars (rl-expr-vars condition)]
-           [result (find-node-with-vars tree (condition-vars))])
+           [result (find-node-with-vars tree condition-vars)])
       (if (pair? result)
           (let* ([selected-nodes (car result)]
                  [cartesian-node (cdr result)]
@@ -222,4 +224,14 @@
           (cdr equiv-join-conditions))))
   (let* ([equiv-join-conditions (filter equiv-join-condition? conditions)]
          [non-join-conditions (filter (negate equiv-join-condition?) conditions)])
-    (optimize-int (list (cons cartesian-node null)) equiv-join-conditions)))
+    (map 
+      (lambda (pair)
+        (let ([tree (car pair)]
+              [unused-conditions (append (cdr pair) non-join-conditions)])
+          (foldl (lambda (condition tree)
+                   (if (null? condition) 
+                       tree
+                       (pushdown-selection tree condition)))
+                 tree
+                 unused-conditions)))
+        (optimize-int (list (cons cartesian-node null)) equiv-join-conditions))))
