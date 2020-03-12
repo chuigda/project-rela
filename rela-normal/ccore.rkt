@@ -235,3 +235,4 @@
                  tree
                  unused-conditions)))
         (optimize-int (list (cons cartesian-node null)) equiv-join-conditions))))
+
