@@ -29,7 +29,7 @@ typedef struct {
   size_t tail;
 } k_tuple_int_t;
 
-#define K_ITER_COMMON k_iter_vtabe_t *vptr;
+#define K_ITER_COMMON k_iter_vtable_t *vptr;
 
 typedef struct {
   k_iter_vtable_t *vptr;

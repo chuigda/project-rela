@@ -20,21 +20,21 @@ typedef void* k_tuple_t;
 
 k_status_t k_init_rsi(inout k_rsi_t *rsi);
 
-k_status_t k_create_table(inout k_rsi_t *rsi, 
+k_status_t k_create_table(inout k_rsi_t rsi, 
                           in const char *table_name, 
                           in const char **columns,
                           in size_t *indexes,
                           out int32_t *table_id);
 
-k_status_t k_table_id(in k_rsi_t *rsi,
+k_status_t k_table_id(in k_rsi_t rsi,
                       in const char *table_name,
                       out int32_t *table_id);
 
-k_status_t k_insert(inout k_rsi_t *rsi,
+k_status_t k_insert(inout k_rsi_t rsi,
                     in int32_t table_id,
                     in k_tuple_t tuple);
 
-k_status_t k_table_iter(in k_rsi_t *rsi,
+k_status_t k_table_iter(in k_rsi_t rsi,
                         in int32_t table_id,
                         out k_iter_t *table_iter);
 
