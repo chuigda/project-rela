@@ -2,6 +2,8 @@
 #define KIANA_K423_H
 
 #include <stdint.h>
+#include <stddef.h>
+#include <stdbool.h>
 
 #define in
 #define out
@@ -36,12 +38,12 @@ k_status_t k_table_iter(in k_rsi_t *rsi,
                         in int32_t table_id,
                         out k_iter_t *table_iter);
 
-char *k_tuple_fetch(in k_tuple_t tuple, 
+char *k_tuple_fetch(in k_tuple_t tuple, in size_t column_id);
 
 k_status_t k_iter_get(in k_iter_t iter,
                       in char *buffer,
                       in size_t bufsiz,
-                      out k_tuple_t *tuple);
+                      out k_tuple_t tuple);
 
 k_status_t k_iter_next(in k_iter_t iter,
                        out k_iter_t *next_iter);
@@ -57,6 +59,6 @@ k_status_t k_iter_index(in k_iter_t iter,
                         in const char *key,
                         in char *buffer,
                         in size_t bufsiz,
-                        out char *value);
+                        out k_tuple_t value);
 
 #endif // KIANA_K423_H
