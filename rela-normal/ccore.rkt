@@ -11,6 +11,7 @@
 (require "util.rkt")
 
 (provide rl-ref rl-ref? rl-ref-var)
+(provide rl-input rl-input? rl-input-var)
 
 (provide rl-build-cartesian
          rl-build-equiv-join
@@ -31,7 +32,10 @@
                     (string-append "<" (string-join (map (lambda (sub-node) (sub-node 'disp))
                                                          sub-nodes)
                                                     " * ")
-                                   ">")])))
+                                   ">")]
+                  ['cost (foldl (lambda (sub-node cost) (* (sub-node 'cost) cost 1.1))
+                                1
+                                sub-nodes)])))
 
 (define (rl-build-selection selected condition)
   (lambda (message . params)
@@ -45,7 +49,8 @@
                                         (raw-expr->string condition)
                                         ": "
                                         (selected 'disp)
-                                        ")")])))
+                                        ")")]
+                  ['cost (* (selected 'cost) 0.5 1.33)])))
 
 (define (rl-build-equiv-join lhs rhs lhs-var rhs-var)
   (lambda (message . params)
@@ -68,9 +73,10 @@
                                    (lhs 'disp)
                                    ", "
                                    (rhs 'disp)
-                                   ")")])))
+                                   ")")]
+                  ['cost (* (lhs 'cost) 1.44)])))
 
-(define (rl-build-table-info name columns indexed-columns)
+(define (rl-build-table-info name columns indexed-columns est-rows)
   (lambda (message . params)
     (case message ['type 'table]
                   ['name name]
@@ -79,12 +85,16 @@
                                             indexed-columns)]
                   ['has-field? (any-of (lambda (column) (equal? column (car params))
                                        columns))]
-                  ['disp name])))
+                  ['disp name]
+                  ['cost (if (null? est-rows)
+                         1000
+                         est-rows)])))
 
-(define (rl-adapt-table table)
+(define (rl-adapt-table table est-rows)
   (rl-build-table-info (rl-table-name table)
                        (rl-table-columns table)
-                       (rl-table-indexed-columns table)))
+                       (rl-table-indexed-columns table)
+                       est-rows))
 
 (provide rl-optimize)
 

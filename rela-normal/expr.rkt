@@ -8,9 +8,10 @@
 
 ; for building name references in raw expressions
 (provide rl-ref rl-ref? rl-ref-var)
+(provide rl-input rl-input? rl-input-var)
 
-(struct rl-ref (name))
-(define rl-ref-var rl-ref-name)
+(struct rl-ref (var))
+(struct rl-input (var))
 
 ; raw expression compiler
 (provide raw-expr->string
@@ -19,16 +20,20 @@
 
 (define (raw-expr->string raw-expr)
     (define (rl-ref-replace raw-expr)
-      (map-recur (lambda (x) (if (rl-ref? x) (rl-ref-name x) x))
+      (map-recur (lambda (x) 
+                   (cond [(rl-ref? x) (rl-ref-var x)]
+                         [(rl-input? x) (string-append "#!" (rl-input-var x))]
+                         [else x]))
                  raw-expr))
     (string-replace (~a (rl-ref-replace raw-expr)) "procedure:" ""))
 
 (define (rl-compile-expr table-columns incomplete-expr)
   (define (rl-compile-item item tuple)
     (cond [(rl-ref? item)
-           (let ([column-name (rl-ref-name item)])
+           (let ([column-name (rl-ref-var item)])
              (list (rl-build-column-selector table-columns column-name) 
                    (list (lambda () tuple))))]
+          [(rl-input? item) (unimplemented)]
           [(list? item) (rl-compile-list item tuple)]
           [else item]))
   (define (rl-compile-list the-list tuple)
