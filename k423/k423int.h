@@ -85,8 +85,9 @@ void k_init_tuple(inout k_tuple_t tuple,
   tuple_int->tail = 0;
 }
 
-bool k_tuple_put(inout k_tuple_t tuple, size_t column, char *value) {
-  // TODO check overflow
+bool k_tuple_put(inout k_tuple_t tuple, 
+                 in size_t column,
+                 in char *value) {
   k_tuple_int_t *tuple_int = (k_tuple_int_t*)tuple;
   size_t value_len = strlen(value);
   

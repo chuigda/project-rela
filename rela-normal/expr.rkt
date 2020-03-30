@@ -11,7 +11,7 @@
 (provide rl-input rl-input? rl-input-var)
 
 (struct rl-ref (var))
-(struct rl-input (var))
+(struct rl-input (var type))
 
 ; raw expression compiler
 (provide raw-expr->string
@@ -19,15 +19,16 @@
          rl-expr-vars)
 
 (define (raw-expr->string raw-expr)
-    (define (rl-ref-replace raw-expr)
-      (map-recur (lambda (x) 
-                   (cond [(rl-ref? x) (rl-ref-var x)]
-                         [(rl-input? x) (string-append "#!" (rl-input-var x))]
-                         [else x]))
-                 raw-expr))
-    (string-replace (~a (rl-ref-replace raw-expr)) "procedure:" ""))
+  (define (rl-ref-replace raw-expr)
+    (map-recur (lambda (x) 
+                 (cond [(rl-ref? x) (rl-ref-var x)]
+                       [(rl-input? x) (string-append "#!" (rl-input-var x) 
+                                                     "@" (~a (rl-input-type x)))]
+                       [else x]))
+               raw-expr))
+  (string-replace (~a (rl-ref-replace raw-expr)) "procedure:" ""))
 
-(define (rl-compile-expr table-columns incomplete-expr)
+(define (rl-compile-expr table-columns raw-expr)
   (define (rl-compile-item item tuple)
     (cond [(rl-ref? item)
            (let ([column-name (rl-ref-var item)])
@@ -39,7 +40,7 @@
   (define (rl-compile-list the-list tuple)
     (map (lambda (item) (rl-compile-item item tuple)) the-list))
   (lambda (tuple) (eval (map (lambda (item) (rl-compile-item item tuple))
-                             incomplete-expr))))
+                             raw-expr))))
 
 (define (rl-expr-vars raw-expr)
   (flatten

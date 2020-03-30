@@ -18,7 +18,7 @@
                    (display " est. cost = ")
                    (displayln (tree 'cost))))
           (rl-optimize three-cartesian
-                       (list (list = (rl-ref "sno") (rl-input "snumber"))
+                       (list (list = (rl-ref "sno") (rl-input "snumber" 'int))
                              (list = (rl-ref "sno") (rl-ref "sno1"))
                              (list = (rl-ref "cno") (rl-ref "cno1"))
                              (list >= (rl-ref "score") 60))))
