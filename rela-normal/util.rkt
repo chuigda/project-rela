@@ -21,7 +21,8 @@
          false2null
          any-of
          list-contains?
-         list-common?)
+         list-common?
+         every)
 
 ; unimplemented stuffs and todos
 (define (unimplemented) (error "unimplemented"))
@@ -97,3 +98,9 @@
   ((negate set-empty?)
    (set-intersect (list->set list1)
                   (list->set list2))))
+
+(define (every pred ls)
+  (if (null? ls)
+      true
+      (and (pred (car ls))
+           (every pred (cdr ls)))))
