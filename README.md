@@ -1,7 +1,3 @@
-# project-kiana
-> 琪亚娜
->
-> 当你醒来，你会发现，你的课桌里塞满了零分试卷
->
-> 所以用这个大作业生成器吧！
->
+# project-rela
+
+> Deprecated
